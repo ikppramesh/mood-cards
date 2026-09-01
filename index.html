@@ -1,0 +1,3451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mood Cards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:ital,wght@0,400;0,600;0,700;1,600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#20242c;
+    --paper:#faf7f0;
+    --hero-bg:#5c6bd8;
+    --hero-text:#fdfbf7;
+    --card-w: min(92vw, 48vh, 480px);
+    --card-h: calc(var(--card-w) * 0.9);
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    padding:0;
+    font-family:'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+    color:var(--ink);
+    background: var(--paper);
+  }
+  /* Locks the document to one viewport (used only while the card/colour-picker
+     screens are shown); the landing and "more categories" screens scroll normally. */
+  html.no-scroll, html.no-scroll body{
+    height:100%;
+    overflow:hidden;
+  }
+  [hidden]{ display:none !important; }
+
+  /* ---------- Shared: rainbow animated backdrop + glass panel ---------- */
+  .screen{
+    position:relative;
+    width:100%;
+    height:100vh;
+    height:100dvh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding: 3vh 20px;
+    overflow:hidden;
+    background: #d8397e;
+    animation: fadeUp 0.5s ease both;
+  }
+  .rainbow-bg{
+    position:absolute;
+    inset: -10%;
+    background: conic-gradient(from 0deg,
+      #db5e70, #d3a24a, #dbcc62, #cddb85, #a9c48a, #6fb894, #6fb0b8,
+      #958ddb, #c29ddb, #db959e, #db5e70);
+    filter: blur(60px) saturate(1.3);
+    animation: rainbowSpin 10s linear infinite;
+    pointer-events:none;
+  }
+  @keyframes rainbowSpin{
+    from{ transform: rotate(0deg) scale(1.3); }
+    to{ transform: rotate(360deg) scale(1.3); }
+  }
+  .screen-blob{
+    position:absolute;
+    border-radius:50%;
+    filter: blur(50px);
+    opacity:0.25;
+    pointer-events:none;
+    animation: drift1 16s ease-in-out infinite;
+  }
+  .screen-blob:nth-child(3){ animation: drift2 19s ease-in-out infinite; }
+  @keyframes drift1{ 0%,100%{transform:translate(0,0) scale(1);} 50%{transform:translate(26px,18px) scale(1.06);} }
+  @keyframes drift2{ 0%,100%{transform:translate(0,0) scale(1);} 50%{transform:translate(-22px,-14px) scale(1.05);} }
+
+  .panel{
+    position:relative;
+    z-index:2;
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+    background: rgba(255,255,255,0.86);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-radius: 30px;
+    padding: 2.6vh 26px 2.6vh;
+    box-shadow: 0 24px 60px -18px rgba(0,0,0,0.35);
+  }
+  .panel h1{
+    font-family:'Fredoka', sans-serif;
+    font-weight:700;
+    font-size: clamp(1.5rem, 4.4vh, 2.3rem);
+    margin: 0 0 1.4vh;
+  }
+  .panel h1 span{
+    font-weight:500;
+    font-style:italic;
+    opacity:0.6;
+    font-size: 0.5em;
+    display:block;
+    margin-top: 2px;
+    font-family:'Nunito', sans-serif;
+  }
+  .panel-tag{
+    margin: 0 0 1.6vh;
+    opacity:0.72;
+    font-size: clamp(0.78rem, 1.7vh, 0.95rem);
+    line-height:1.4;
+    max-width:460px;
+  }
+
+  .back-link{
+    position:relative;
+    z-index:2;
+    align-self:flex-start;
+    font-family:'Fredoka', sans-serif;
+    font-weight:600;
+    font-size: clamp(0.75rem, 1.8vh, 0.9rem);
+    color: inherit;
+    background:none;
+    border:none;
+    cursor:pointer;
+    opacity:0.8;
+    display:flex;
+    align-items:center;
+    gap:5px;
+    padding: 2px 0;
+    margin-bottom: 0.8vh;
+  }
+  .back-link:hover{ opacity:1; }
+  .back-link svg{ width:13px; height:13px; }
+  .back-link.right{ align-self:flex-end; }
+
+  .panel-top{
+    width:100%;
+    display:flex;
+    justify-content:flex-end;
+  }
+
+  @keyframes fadeUp{
+    from{opacity:0; transform: translateY(16px);}
+    to{opacity:1; transform: translateY(0);}
+  }
+  @keyframes dropIn{
+    from{opacity:0; transform: translateY(-14px);}
+    to{opacity:1; transform: translateY(0);}
+  }
+
+  /* ---------- Landing view: choose a deck ---------- */
+  /* Unlike the picker/card screens, these can hold a growing number of tiles,
+     so they scroll as a normal page instead of locking to one viewport. */
+  .landing-view, .more-view{
+    height:auto;
+    min-height:100vh;
+    min-height:100dvh;
+    padding-top: 4vh;
+    padding-bottom: 4vh;
+  }
+  .landing-view .panel, .more-view .panel{
+    max-width: 980px;
+  }
+  .deck-tiles{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+    width:100%;
+    margin-bottom: 2vh;
+  }
+  .deck-tile{
+    border: none;
+    cursor:pointer;
+    border-radius: 18px;
+    padding: 1.6vh 14px;
+    text-align:left;
+    background: var(--tile-bg, #eee);
+    box-shadow: 0 8px 20px -10px rgba(0,0,0,0.25);
+    transition: transform 0.25s cubic-bezier(.4,1.4,.6,1), box-shadow 0.25s ease;
+    display:flex;
+    flex-direction:column;
+    gap: 6px;
+  }
+  .deck-tile:hover{
+    transform: translateY(-5px) scale(1.03);
+    box-shadow: 0 16px 30px -12px rgba(0,0,0,0.3);
+  }
+  .deck-tile:active{ transform: translateY(-1px) scale(0.99); }
+  .deck-tile .tile-name{
+    font-family:'Fredoka', sans-serif;
+    font-weight:700;
+    font-size: clamp(0.88rem, 2.2vh, 1.05rem);
+    color: var(--tile-ink, #222);
+  }
+  .deck-tile .tile-desc{
+    font-size: clamp(0.66rem, 1.4vh, 0.78rem);
+    color: var(--tile-ink, #222);
+    opacity:0.75;
+    line-height:1.3;
+  }
+  .tile-dots{
+    display:flex;
+    gap:4px;
+    margin-top:2px;
+  }
+  .tile-dots span{
+    width:12px; height:12px;
+    border-radius:50%;
+    display:inline-block;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5);
+  }
+
+  .how-to{
+    display:flex;
+    gap: 22px;
+    flex-wrap: wrap;
+    justify-content:center;
+    padding-top: 1.8vh;
+    border-top: 1px solid rgba(0,0,0,0.08);
+    width:100%;
+  }
+  .how-to-step{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    max-width: 190px;
+  }
+  .how-to-step .num{
+    flex:0 0 auto;
+    width: 24px; height:24px;
+    border-radius:50%;
+    background: var(--ink);
+    color: var(--paper);
+    font-family:'Fredoka', sans-serif;
+    font-weight:600;
+    font-size:0.78rem;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .how-to-step p{
+    margin:0;
+    font-size: clamp(0.7rem, 1.5vh, 0.8rem);
+    line-height:1.32;
+    text-align:left;
+    opacity:0.82;
+  }
+
+  /* ---------- Picker view: pick a colour ---------- */
+  .picker-view .panel{ max-width: 560px; }
+  .color-grid{
+    display:flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    max-width: 480px;
+    margin-bottom: 1.6vh;
+  }
+  .color-grid .swatch{
+    width: clamp(30px, 6.2vh, 50px);
+    height: clamp(30px, 6.2vh, 50px);
+    opacity:0;
+    animation: swatchIn 0.45s ease both;
+  }
+  @keyframes swatchIn{
+    from{ opacity:0; transform: scale(0.4) translateY(10px); }
+    to{ opacity:1; transform: scale(1) translateY(0); }
+  }
+  .surprise{
+    margin-top: 0.6vh;
+    color: var(--ink);
+    opacity:0.75;
+  }
+
+  /* ---------- Hero: full-bleed bold colour band with the card ---------- */
+  .hero{
+    justify-content:center;
+    background: var(--hero-bg);
+    color: var(--hero-text);
+    transition: background-color 0.6s cubic-bezier(.3,.7,.4,1), color 0.6s ease;
+    animation: fadeUp 0.5s ease both;
+  }
+  .hero::before{
+    content:'';
+    position:absolute;
+    inset:0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 140px 140px;
+    mix-blend-mode: overlay;
+    opacity: 0.07;
+    pointer-events:none;
+  }
+  .hero-blob{
+    position:absolute;
+    border-radius:50%;
+    filter: blur(46px);
+    pointer-events:none;
+  }
+  .hero-blob-a{
+    width:280px; height:280px; top:-90px; left:-70px;
+    background:#ffffff; opacity:.22;
+    animation: drift1 15s ease-in-out infinite;
+  }
+  .hero-blob-b{
+    width:230px; height:230px; bottom:-90px; right:-50px;
+    background:#000000; opacity:.10;
+    animation: drift2 18s ease-in-out infinite;
+  }
+
+  .hero-inner{
+    position:relative;
+    z-index:2;
+    max-width: 640px;
+    width:100%;
+    margin:0 auto;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    background:none;
+    box-shadow:none;
+    backdrop-filter:none;
+    padding:0;
+  }
+
+  header{
+    text-align:center;
+    margin-bottom: 2vh;
+    animation: dropIn 0.7s ease both;
+  }
+  header h1{
+    font-family:'Fredoka', sans-serif;
+    font-weight:700;
+    font-size: clamp(1.5rem, 4.4vh, 2.6rem);
+    margin: 0 0 2px;
+    letter-spacing: 0.2px;
+  }
+  header h1 span{
+    font-weight:500;
+    font-style:italic;
+    opacity:0.8;
+    font-size: 0.5em;
+    display:block;
+    margin-top: 2px;
+    font-family:'Nunito', sans-serif;
+  }
+  header p{
+    margin: 8px auto 0;
+    max-width: 440px;
+    opacity:0.88;
+    font-size: clamp(0.78rem, 1.8vh, 0.95rem);
+    line-height:1.45;
+  }
+  .hero .back-link{ color: inherit; }
+
+  /* ---------- Stage: the flipping card ---------- */
+  .stage{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap: 1.8vh;
+    width:100%;
+  }
+
+  /* ---------- Deck stack: paper cards behind the active one ---------- */
+  .deck-wrap{
+    position:relative;
+    width: var(--card-w);
+    height: var(--card-h);
+    animation: fadeUp 0.7s ease both;
+  }
+  .deck-card{
+    position:absolute;
+    inset:0;
+    border-radius: 26px;
+    background: var(--paper);
+    box-shadow: 0 10px 26px -10px rgba(0,0,0,0.35);
+  }
+  .deck-card-2{ transform: translate(10px,14px) rotate(4deg); z-index:0; opacity:0.55; }
+  .deck-card-1{ transform: translate(5px,7px) rotate(2deg); z-index:1; opacity:0.8; }
+
+  .scene{
+    position:relative;
+    z-index:2;
+    width:100%;
+    height:100%;
+    perspective: 1600px;
+  }
+  .scene.dealing{
+    animation: deal 0.55s cubic-bezier(.22,.85,.32,1.15) both;
+  }
+  @keyframes deal{
+    0%{ transform: translate(-22px,-24px) rotate(-6deg) scale(0.9); opacity:0; }
+    55%{ transform: translate(3px,3px) rotate(2deg) scale(1.03); opacity:1; }
+    100%{ transform: translate(0,0) rotate(0deg) scale(1); opacity:1; }
+  }
+
+  .card3d{
+    position:relative;
+    width:100%;
+    height:100%;
+    cursor:pointer;
+    transform-style: preserve-3d;
+    transition: transform 0.7s cubic-bezier(.4,.2,.2,1);
+  }
+  .card3d.flipped{
+    transform: rotateY(180deg);
+  }
+
+  .face{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    border-radius: 26px;
+    backface-visibility: hidden;
+    display:flex;
+    flex-direction:column;
+    padding: 7% 8%;
+    box-shadow: 0 20px 44px -14px rgba(20,15,10,0.4), 0 2px 8px rgba(20,15,10,0.1);
+    background-color: var(--paper);
+    color: var(--ink);
+  }
+  .face::after{
+    content:'';
+    position:absolute;
+    inset:0;
+    border-radius: inherit;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 120px 120px;
+    mix-blend-mode: multiply;
+    opacity: 0.035;
+    pointer-events:none;
+  }
+  .face.front{
+    transform: rotateY(0deg);
+    justify-content:space-between;
+  }
+  .face.back{
+    transform: rotateY(180deg);
+    justify-content:center;
+    overflow:hidden;
+  }
+
+  .face-top{
+    position:relative;
+    z-index:1;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .pill{
+    font-family:'Fredoka', sans-serif;
+    font-weight:600;
+    font-size: clamp(0.8rem, 2vw, 0.98rem);
+    padding: 7px 17px;
+    border-radius: 999px;
+    background: var(--pill-bg, #eee);
+    color: var(--pill-text, #333);
+    transition: background-color 0.4s ease, color 0.4s ease;
+  }
+  .hint{
+    font-size: 0.76rem;
+    letter-spacing: 0.6px;
+    opacity: 0.5;
+    display:flex;
+    align-items:center;
+    gap:4px;
+    white-space:nowrap;
+  }
+  .hint svg{ width:14px; height:14px; }
+
+  .title{
+    position:relative;
+    z-index:1;
+    font-family:'Fredoka', sans-serif;
+    font-weight:600;
+    font-size: clamp(1.6rem, 5.6vw, 2.4rem);
+    line-height:1.14;
+    text-align:left;
+  }
+
+  .doodle{
+    position:relative;
+    z-index:1;
+    height: 21%;
+    width:100%;
+  }
+  .doodle-blob{
+    position:absolute;
+    left:0; bottom:0;
+    width:38%; aspect-ratio:1;
+    border-radius: 38% 62% 55% 45% / 45% 40% 60% 55%;
+    background: var(--accent, #ccc);
+    opacity:0.92;
+    animation: float1 5.5s ease-in-out infinite;
+  }
+  .doodle-circle{
+    position:absolute;
+    left:26%; bottom:22%;
+    width:19%; aspect-ratio:1;
+    border-radius:50%;
+    background: var(--accent-deep, #999);
+    opacity:0.9;
+    animation: float2 4.6s ease-in-out infinite;
+  }
+  .doodle-spark{
+    position:absolute;
+    right:4%; bottom:10%;
+    font-size: clamp(1.1rem, 4.4vw, 1.7rem);
+    color: var(--accent-deep, #999);
+    animation: twinkle 2.8s ease-in-out infinite;
+  }
+  @keyframes float1{ 0%,100%{ transform: translateY(0) rotate(0deg); } 50%{ transform: translateY(-8%) rotate(5deg); } }
+  @keyframes float2{ 0%,100%{ transform: translateY(0); } 50%{ transform: translateY(7%); } }
+  @keyframes twinkle{ 0%,100%{ opacity:.45; transform: scale(.8) rotate(0deg); } 50%{ opacity:1; transform: scale(1.2) rotate(18deg); } }
+
+  .back .backlines{
+    position:relative;
+    z-index:1;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap: 3.4%;
+  }
+  .back .bl-item{
+    font-size: clamp(0.72rem, 1.95vw, 0.92rem);
+    line-height:1.38;
+  }
+  .back .bl-label{
+    font-weight:700;
+    font-family:'Fredoka', sans-serif;
+    color: var(--accent-deep, var(--ink));
+    letter-spacing:0.2px;
+  }
+
+  .tap-note{
+    font-size: clamp(0.8rem, 1.8vh, 0.92rem);
+    opacity:0.75;
+    text-align:center;
+  }
+
+  .controls{
+    display:flex;
+    gap: 30px;
+    align-items:center;
+    justify-content:center;
+  }
+  .linkbtn{
+    font-family:'Fredoka', sans-serif;
+    font-weight:600;
+    font-size: clamp(0.95rem, 2.6vh, 1.2rem);
+    color: inherit;
+    background:none;
+    border:none;
+    cursor:pointer;
+    padding: 4px 2px 8px;
+    position:relative;
+    display:flex;
+    align-items:center;
+    gap:7px;
+  }
+  .linkbtn::after{
+    content:'';
+    position:absolute;
+    left:0; right:0; bottom:2px;
+    height:2.5px;
+    background: currentColor;
+    opacity:0.55;
+    border-radius:2px;
+    transform: scaleX(1);
+    transform-origin:left;
+    transition: transform 0.3s cubic-bezier(.4,1.2,.5,1), opacity 0.3s ease;
+  }
+  .linkbtn:hover::after{ transform: scaleX(0.6); opacity:0.9; }
+  .linkbtn:hover{ transform: translateY(-1px); }
+  .linkbtn:active{ transform: translateY(0) scale(0.97); }
+  .linkbtn svg{ width:15px; height:15px; transition: transform 0.4s ease; }
+  .linkbtn.draw:hover svg{ transform: rotate(180deg); }
+
+  /* ---------- Swatch: one colour dot, reused in the picker's colour grid ---------- */
+  .swatch{
+    width: clamp(18px, 4vh, 30px);
+    height: clamp(18px, 4vh, 30px);
+    border-radius: 50%;
+    border: none;
+    cursor:pointer;
+    position:relative;
+    padding:0;
+    box-shadow: 0 2px 7px rgba(0,0,0,0.25), inset 0 0 0 2px rgba(255,255,255,0.55);
+    transition: transform 0.2s cubic-bezier(.4,1.4,.6,1), box-shadow 0.2s ease;
+  }
+  .swatch:hover{
+    transform: translateY(-3px) scale(1.15);
+  }
+  .swatch.active{
+    box-shadow: 0 0 0 2px var(--hero-text), 0 0 0 4px var(--sw-color), 0 4px 10px rgba(0,0,0,0.3);
+    transform: scale(1.14);
+  }
+  .swatch .check{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    opacity:0;
+    transition: opacity 0.25s ease;
+    color:#fff;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+  }
+  .swatch .check svg{ width:60%; height:60%; }
+  .swatch.active .check{ opacity:1; }
+
+  @media (max-width: 420px){
+    .hero{ padding: 2vh 16px; }
+    .deck-card-1{ transform: translate(4px,5px) rotate(1.5deg); }
+    .deck-card-2{ transform: translate(8px,10px) rotate(3deg); }
+    .deck-tiles{ grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  }
+
+  @media (max-height: 760px){
+    header p{ display:none; }
+    .panel-tag{ display:none; }
+    .how-to-step p{ display:none; }
+    .how-to{ gap:14px; }
+  }
+</style>
+</head>
+<body>
+
+<section class="screen landing-view" id="landingView">
+  <div class="rainbow-bg"></div>
+  <div class="screen-blob hero-blob-a"></div>
+  <div class="screen-blob hero-blob-b"></div>
+  <div class="panel">
+    <div class="panel-top">
+      <button class="back-link right" id="moreCategoriesBtn">
+        more categories
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+    <h1>Mood Cards</h1>
+    <p class="panel-tag">Little activities that shift your mood, one colour at a time. Choose a deck to begin.</p>
+    <div class="deck-tiles" id="deckTiles"></div>
+    <div class="how-to">
+      <div class="how-to-step">
+        <span class="num">1</span>
+        <p>Pick a deck for how you want to use these — on your own, at work, or with a partner.</p>
+      </div>
+      <div class="how-to-step">
+        <span class="num">2</span>
+        <p>Pick a colour that matches your mood, or hit "Surprise me" for a random one.</p>
+      </div>
+      <div class="how-to-step">
+        <span class="num">3</span>
+        <p>Read the card, then flip it for a quick DO / TIP activity to try right now.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="screen more-view" id="moreView" hidden>
+  <div class="rainbow-bg"></div>
+  <div class="screen-blob hero-blob-a"></div>
+  <div class="screen-blob hero-blob-b"></div>
+  <div class="panel">
+    <button class="back-link" id="moreBackLink">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      core decks
+    </button>
+    <h1>More categories</h1>
+    <p class="panel-tag">A few more specific decks, for particular moods and moments.</p>
+    <div class="deck-tiles" id="moreTiles"></div>
+  </div>
+</section>
+
+<section class="screen picker-view" id="pickerView" hidden>
+  <div class="rainbow-bg"></div>
+  <div class="screen-blob hero-blob-a"></div>
+  <div class="screen-blob hero-blob-b"></div>
+  <div class="panel">
+    <button class="back-link" id="landingBackLink">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      decks
+    </button>
+    <h1>Mood Cards <span id="pickerSpan">for me</span></h1>
+    <div class="color-grid" id="colorGrid"></div>
+    <p class="panel-tag">20 practical activities to get you into a positive mindset. Pick a colour that matches how you feel right now.</p>
+    <button class="linkbtn surprise" id="surpriseBtn">
+      Surprise me
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="7" width="12" height="15" rx="2"/><path d="M9 7V4.8C9 3.8 9.8 3 10.8 3h7.4C19.2 3 20 3.8 20 4.8v12.4c0 1-.8 1.8-1.8 1.8H16"/></svg>
+    </button>
+  </div>
+</section>
+
+<section class="screen hero" id="hero" hidden>
+  <div class="hero-blob hero-blob-a"></div>
+  <div class="hero-blob hero-blob-b"></div>
+  <div class="hero-inner">
+    <button class="back-link" id="backLink">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      all colours
+    </button>
+    <header>
+      <h1>Mood Cards <span id="heroSpan">for me</span></h1>
+      <p>20 practical activities to get you into a positive mindset. Draw from the deck, or tap the card to flip it over.</p>
+    </header>
+
+    <div class="stage">
+      <div class="deck-wrap">
+        <div class="deck-card deck-card-2"></div>
+        <div class="deck-card deck-card-1"></div>
+        <div class="scene" id="scene">
+          <div class="card3d" id="card3d">
+            <div class="face front" id="faceFront">
+              <div class="face-top">
+                <span class="pill" id="frontPill">Mindfulness</span>
+                <span class="hint">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3l4 4-4 4M21 7H8M7 21l-4-4 4-4M3 17h13"/></svg>
+                  tap to flip
+                </span>
+              </div>
+              <div class="title" id="frontTitle">Every role I play</div>
+              <div class="doodle" aria-hidden="true">
+                <span class="doodle-blob"></span>
+                <span class="doodle-circle"></span>
+                <span class="doodle-spark">✦</span>
+              </div>
+            </div>
+            <div class="face back" id="faceBack">
+              <div class="backlines" id="backLines"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="tap-note">Click / tap the card to flip it</div>
+      <div class="controls">
+        <button class="linkbtn" id="flipBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3l4 4-4 4M21 7H8M7 21l-4-4 4-4M3 17h13"/></svg>
+          Flip card
+        </button>
+        <button class="linkbtn draw" id="drawBtn">
+          Draw a card
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="7" width="12" height="15" rx="2"/><path d="M9 7V4.8C9 3.8 9.8 3 10.8 3h7.4C19.2 3 20 3.8 20 4.8v12.4c0 1-.8 1.8-1.8 1.8H16"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+const DECKS = {
+
+  me: {
+    label: "for me",
+    desc: "20 activities to boost your own mood and mindset.",
+    tileColors: ["#958ddb","#db9db3","#db7053","#d3a24a","#6fb894"],
+    cards: [
+      { title:"Things I am grateful for", category:"Mindfulness", color:"#c7c6c1",
+        lines:[
+          ["DO.","Stay where you are, look around. Notice three little things you feel grateful for. How many of them do you sometimes take for granted?"],
+          ["TIP.","Think about the sun shining outside, the food in your fridge, the clean clothes you are wearing."],
+          ["WRITE.","Every day, take a moment to write down the big and small things you are most grateful for in your life. Go back to your list whenever you feel down, to remember, savour and appreciate what you have."]
+        ]},
+      { title:"Daily notes of kindness", category:"Mindfulness", color:"#9dc0db",
+        lines:[
+          ["DO.","At the end of the day, send a message of kindness to someone you love or admire (a friend, a family member, a colleague, etc.)."],
+          ["TIP.","Give them a compliment, let them know you are thinking about them, or say thank you for something they have done for you."],
+          ["REPEAT.","Make this a daily practice to let the people close to you know how you feel about them. Be honest, positive and supportive. How does it feel knowing you made their day special?"]
+        ]},
+      { title:"Take a mindful walk", category:"Mindfulness", color:"#958ddb",
+        lines:[
+          ["DO.","When you feel stuck or overwhelmed by your thoughts, go out to get some fresh air and stretch your legs. As you walk, look around and use your senses to connect with the surroundings."],
+          ["TIP.","Focus on the colours you see, the sounds you hear, the smells of the street, the feel of your feet touching the ground, etc."],
+          ["NOTICE.","As you become aware of all these things, notice how you feel more present. By clearing your mind, you release your worries and allow yourself to regain your focus."]
+        ]},
+      { title:"The magic drawer", category:"Mindfulness", color:"#7d74c9",
+        lines:[
+          ["DO.","Choose a drawer in your home that only you have access to. Organise it so that everything in it is in order and arranged as you want it to be. Make sure to keep it that way at all times."],
+          ["TIP.","It could be your nightstand drawer or the one where you keep your socks or makeup, etc."],
+          ["LOOK.","Think of this as the magic drawer you have complete control of, no matter how messy the rest of the house gets. Look inside your drawer whenever you need to, and it can help you find a small relief."]
+        ]},
+      { title:"The power of imagination", category:"Personal development", color:"#c29ddb",
+        lines:[
+          ["DO.","Close your eyes and think about a little dream you have. Start picturing, in detail, what it would be like if that dream came true."],
+          ["TIP.","It can be something you wish could happen, or that you aspire to achieve."],
+          ["IMAGINE.","Involving all your senses, immerse yourself in that vision, focusing on how it makes you feel. Embrace this feeling for as long as you can. Open your eyes and draw on it to get the motivation to make your dream come true."]
+        ]},
+      { title:"Before I go to bed", category:"Personal development", color:"#c69ddb",
+        lines:[
+          ["DO.","Think about those little things you don't usually feel like doing in the evenings, and so instead you postpone them until the morning. Don't they feel like an additional burden at the start of the day?"],
+          ["TIP.","Cleaning up dirty dishes, tidying away or choosing your clothes for the next day, etc."],
+          ["TRY.","Before going to bed, make the extra effort to take care of (at least one of) those bits of unfinished business. You will wake up lighter in the morning!"]
+        ]},
+      { title:"Baby steps still move me forward", category:"Personal development", color:"#c186c2",
+        lines:[
+          ["DO.","Think about a big or small goal you want to achieve. Draw a stairway: write your goal at the top, and on each step, an action you can take towards the goal."],
+          ["TIP.","Start from your goal and go backwards to figure out the steps you need to get there."],
+          ["NOTICE.","Every time you complete an action, decorate the relative step to mark your achievements. Notice how every step, as little as it can seem, is getting you a little bit closer to the top."]
+        ]},
+      { title:"Getting into new habits", category:"Personal development", color:"#db9db3",
+        lines:[
+          ["DO.","Think of a new habit you want to develop. Pick a set time of the day in which you can start practicing your habit for only a few minutes, on a regular basis (daily, twice a week)."],
+          ["TIP.","Read one page of a book at breakfast, do 10 squats while brushing your teeth, etc."],
+          ["TRY.","When you have successfully kept your habit for a few weeks, gradually increase the time you are spending on it until you reach your goal. In no time, you will be committed to the new habit!"]
+        ]},
+      { title:"My sacred space", category:"Self-care", color:"#db959e",
+        lines:[
+          ["DO.","Find a quiet corner where you can be by yourself when you need to, and make it comfortable and cosy."],
+          ["TIP.","Add a pillow or blanket, light a candle or hang a print to the wall next to it."],
+          ["RELAX.","Turn this space into a sacred one, where negative or stressful thoughts are not allowed. Make sure you use it whenever you need to relax or refocus, and take a break from your busy life."]
+        ]},
+      { title:"Mirror mirror on the wall", category:"Self-care", color:"#db5e70",
+        lines:[
+          ["DO.","Sit in front of a mirror and look at your reflection. Think about the things you love about yourself: the things that make you feel proud, or special, or talented."],
+          ["TIP.","You might love your loyalty, your kindness, your voice, your positive energy, etc."],
+          ["TRY.","Create a little ritual around this moment, to get in touch with yourself and appreciate the way you are. Make sure you repeat it every day, or whenever you need a little boost of self-love."]
+        ]},
+      { title:"Learn to say no", category:"Self-care", color:"#db7053",
+        lines:[
+          ["DO.","Make a list of the key things that have a positive impact on your well-being, without which you know you don't feel as good."],
+          ["TIP.","Spending quality time with family or friends, sleeping a good amount of hours, exercising regularly, etc."],
+          ["PONDER.","Whenever you feel you should say yes to something even though you would rather not, take out your list. If making this commitment means compromising one of your priorities, don't you think you have a great reason to say no?"]
+        ]},
+      { title:"Lose yourself to dance", category:"Self-care", color:"#dba097",
+        lines:[
+          ["DO.","Play your favourite feel good tune: a song that makes you want to release your energy and loosen up. Turn up the volume and start dancing like nobody's watching."],
+          ["TIP.","No thoughts, no worries, no responsibilities. For a few minutes: just dance!"],
+          ["PLAY.","Make a playlist of all the songs that make you feel this way, and play it whenever you need to release your energy and silliness with no judgement."]
+        ]},
+      { title:"Every role I play", category:"Self-confidence", color:"#d3a24a",
+        lines:[
+          ["DO.","Think about all the different roles you are playing in your life at the same time (you might be a friend, a partner, a professional, etc.)."],
+          ["TIP.","Remember that while those roles make you who you are, you are more than any one of them."],
+          ["REFLECT.","When you find it overwhelming to do your best in all these roles, focus on one of them at a time. Maybe today you are not being the best professional, but this doesn't mean you are not an amazing friend."]
+        ]},
+      { title:"I already have all it takes", category:"Self-confidence", color:"#dbcc62",
+        lines:[
+          ["DO.","Look back and think of a time in your life when you overcame a challenge that initially felt difficult, or even impossible. How did you do it?"],
+          ["TIP.","Reflect on the skills, abilities and inner strength you used and built on in that moment."],
+          ["WRITE.","Write them down, and use your list as a reminder that you already have within yourself the power to make it through hard times."]
+        ]},
+      { title:"Embrace the discomfort", category:"Self-confidence", color:"#d7db80",
+        lines:[
+          ["DO.","Make a list of the things you avoid doing because they make you slightly uncomfortable."],
+          ["TIP.","Talking to strangers, trying new things, giving honest feedback, etc."],
+          ["DARE.","Every day, pick one thing from your list and come up with a small challenge that makes you step outside of your comfort zone. Slowly and with practice, you will get more confident and ready to conquer your fears."]
+        ]},
+      { title:"Celebrate every small win", category:"Self-confidence", color:"#cddb85",
+        lines:[
+          ["DO.","At the end of the day, think about a small personal success or win you have achieved."],
+          ["TIP.","It could be something you finally found the time to do, something you have done for the first time or for someone else, etc."],
+          ["CELEBRATE.","Take a moment to acknowledge your efforts. Give yourself a reward by doing something special or share your achievements with the people you love so they can celebrate with you!"]
+        ]},
+      { title:"I am not alone", category:"Emotional awareness", color:"#a9c48a",
+        lines:[
+          ["DO.","When you feel low or worried about something, reach out to someone you trust and share the way you feel."],
+          ["TIP.","They might have been through the same and can offer support or help you feel understood. On the other hand, they might not have experienced the same as you, but they can listen, offer comfort and help you feel less alone."],
+          ["SHARE.","Make it a regular practise to check in with them, so you both know you are always there for each other."]
+        ]},
+      { title:"Let it go and walk away", category:"Emotional awareness", color:"#8fb885",
+        lines:[
+          ["DO.","Pick a place where you can have a moment to yourself (a room, a garden, a square etc.). Visualise something that is holding you back or making you feel sad, angry or upset."],
+          ["TIP.","This could be a small fear or insecurity, a negative comment you received, a mistake you regret, etc."],
+          ["TRY.","For a few minutes, allow yourself to indulge in that thought. When you are ready to let it go, walk away. As you are leaving the place, imagine you are also leaving that thought behind for good."]
+        ]},
+      { title:"How am I feeling?", category:"Emotional awareness", color:"#6fb894",
+        lines:[
+          ["DO.","Check in with yourself at various moments during the day and make a point to notice the emotions you feel and what you're doing when you feel them."],
+          ["TIP.","You might be relaxed when reading, pleased if a friend calls you, irritated if you misplace something."],
+          ["RATE.","Write down the emotions you have felt in specific occasions and rate their intensity from 0 to 10. In time, recognise patterns and triggers to learn which situations affect your mood positively or negatively."]
+        ]},
+      { title:"What can I do to feel happier?", category:"Emotional awareness", color:"#6fb0b8",
+        lines:[
+          ["DO.","Choose a simple activity that you like to do, and that you can start doing right where you are, with what you have. Start small, and pick something that can make you feel 5% happier."],
+          ["TIP.","Listen to a song, prepare a tasty snack, look at your favourite pictures, etc."],
+          ["WRITE.","Create your go-to list of activities for when you need a little mood booster. Write next to each one how much happier they make you feel, so in the future, you can choose according to your needs."]
+        ]},
+    ]
+  },
+
+  work: {
+    label: "for work",
+    desc: "20 activities for balance, focus and resilience at work.",
+    tileColors: ["#4a6fd4","#2f9e7a","#8f8a99","#c47a3f","#7a5ec2"],
+    cards: [
+      { title:"Start and end your day right", category:"Mindfulness", color:"#4a6fd4",
+        lines:[
+          ["DO.","Take some time at the beginning and at the end of your day to do an activity that makes you feel good. Use your commute time when you travel or walk to the office, or schedule some time in your calendar if you work from home."],
+          ["TIP.","You can listen to a podcast or a playlist, meditate, journal, call a friend, etc."],
+          ["SCHEDULE.","Make sure this remains your special, non-negotiable time to focus on yourself. This way you can get the right energy to start every working day, and to switch off and release tension at the end of it."]
+        ]},
+      { title:"Eat mindfully", category:"Mindfulness", color:"#6f8ee0",
+        lines:[
+          ["DO.","Step away from your screen for lunch, even if it's just for ten minutes. Notice the taste, texture and smell of your food instead of scrolling or replying to emails."],
+          ["TIP.","Sit somewhere different from your desk, even if it's just a different chair by a window."],
+          ["NOTICE.","Coming back to your afternoon with a clear head makes you sharper and calmer than eating at your keyboard ever could."]
+        ]},
+      { title:"Take a breathing break", category:"Mindfulness", color:"#93aeeb",
+        lines:[
+          ["DO.","Set a reminder for the middle of your day. When it goes off, stop and take five slow, deep breaths before continuing."],
+          ["TIP.","Breathe in for four counts, hold for four, and out for four."],
+          ["NOTICE.","This tiny reset lowers your stress response and helps you approach the rest of the day with a clearer mind."]
+        ]},
+      { title:"Declutter your desk", category:"Mindfulness", color:"#b8cef5",
+        lines:[
+          ["DO.","Spend five minutes at the end of the day clearing your desk, physical or digital, of anything you don't need tomorrow."],
+          ["TIP.","Keep one small object nearby that makes you smile — a photo, a plant, a note."],
+          ["NOTICE.","Starting the next day with a clear space makes it easier to start with a clear head."]
+        ]},
+      { title:"Recognise your progress", category:"Resilience", color:"#8f8a99",
+        lines:[
+          ["DO.","At the end of the week, write down three things you handled well, even if they felt small at the time."],
+          ["TIP.","Include moments where you stayed calm, solved a problem, or simply kept going."],
+          ["REFLECT.","Progress rarely feels dramatic in the moment. Naming it helps you see how far you've actually come."]
+        ]},
+      { title:"Learn from setbacks", category:"Resilience", color:"#a89fb0",
+        lines:[
+          ["DO.","Next time something doesn't go to plan, ask yourself one honest question: what would I do differently next time?"],
+          ["TIP.","Focus on the decision, not on blaming yourself or others."],
+          ["MOVE ON.","Write down the one lesson and let the rest go. Carrying the whole event with you helps no one, least of all you."]
+        ]},
+      { title:"Talk about what's hard", category:"Resilience", color:"#c2b8c7",
+        lines:[
+          ["DO.","Choose one person at work you trust, and tell them about something that's been difficult lately."],
+          ["TIP.","You don't need a solution before you speak, just say it out loud."],
+          ["NOTICE.","Saying the hard thing out loud usually makes it feel more manageable, and often opens the door to support you didn't know was there."]
+        ]},
+      { title:"Celebrate small wins at work", category:"Resilience", color:"#d9d2dd",
+        lines:[
+          ["DO.","When you finish something today, however small, pause and acknowledge it before moving to the next task."],
+          ["TIP.","Say it out loud, tick it off with a flourish, or tell a colleague."],
+          ["REPEAT.","Stacking small wins builds the resilience you'll need for the bigger challenges."]
+        ]},
+      { title:"Set your priorities", category:"Work/life balance", color:"#2f9e7a",
+        lines:[
+          ["DO.","At the start of your day, write down the three things that truly need to happen today, no more."],
+          ["TIP.","Put the most important one first, even if it feels like the hardest."],
+          ["FOCUS.","Everything else can wait, be delegated, or wait until tomorrow. Protecting your top three protects your energy."]
+        ]},
+      { title:"Use your time wisely", category:"Work/life balance", color:"#4fb896",
+        lines:[
+          ["DO.","Look at your calendar and block out time for focused work, not just meetings."],
+          ["TIP.","Turn off notifications during your focus blocks, even for twenty minutes at a time."],
+          ["NOTICE.","Time you control feels completely different from time that just happens to you."]
+        ]},
+      { title:"Switch off after work", category:"Work/life balance", color:"#7cd0b3",
+        lines:[
+          ["DO.","Choose one small ritual that marks the end of your working day — closing your laptop, a short walk, changing your clothes."],
+          ["TIP.","Do it at the same time and the same way each day so your mind learns to recognise it."],
+          ["PROTECT.","This signal tells your brain it's safe to stop thinking about work, so you can actually rest."]
+        ]},
+      { title:"Take real lunch breaks", category:"Work/life balance", color:"#a8e4d1",
+        lines:[
+          ["DO.","Step away from your desk for lunch today, even if you can only manage fifteen minutes."],
+          ["TIP.","Leave your phone behind if you can, or at least leave work chat closed."],
+          ["NOTICE.","A proper break in the middle of the day changes how the rest of it feels."]
+        ]},
+      { title:"Celebrate accomplishments", category:"Relationships", color:"#c47a3f",
+        lines:[
+          ["DO.","When a colleague or your team achieves something, take a moment to properly acknowledge it — not just a quick emoji."],
+          ["TIP.","Be specific about what they did well and the impact it had."],
+          ["SHARE.","Genuine recognition costs nothing and builds the kind of trust that makes work feel better for everyone."]
+        ]},
+      { title:"Handle conflict with care", category:"Relationships", color:"#d4975f",
+        lines:[
+          ["DO.","When a conflict arises with a colleague, make sure to confront them, in order to resolve the situation quickly and keep a positive relationship."],
+          ["TIP.","Find a private place to talk and clarify the issue, and keep the tone of the conversation calmed and controlled."],
+          ["TALK.","Explain how the situation is affecting you and your job and how you would like to address it. Focus on the possible resolution rather than what you disagree on. Listen to their point of view with an open mind, and come up with actions to take together."]
+        ]},
+      { title:"Say thank you to a colleague", category:"Relationships", color:"#e0b389",
+        lines:[
+          ["DO.","Think of someone at work who has helped you recently, and tell them directly what it meant to you."],
+          ["TIP.","A message works, but saying it face to face lands even better."],
+          ["NOTICE.","Thanking people regularly is one of the simplest ways to build strong working relationships."]
+        ]},
+      { title:"Ask for help when you need it", category:"Relationships", color:"#ecd0b3",
+        lines:[
+          ["DO.","Identify one thing you're currently stuck on, and ask a colleague for their input today."],
+          ["TIP.","Be specific about what kind of help would actually be useful."],
+          ["REMEMBER.","Asking for help isn't a weakness, it's how good teams actually work."]
+        ]},
+      { title:"Make a positive impact", category:"Purpose", color:"#7a5ec2",
+        lines:[
+          ["DO.","Think of one small action you could take today that would make someone else's work easier."],
+          ["TIP.","It could be sharing information early, offering feedback, or simply checking in."],
+          ["NOTICE.","Purpose often isn't found in the big moments, it's built through small, consistent actions like this one."]
+        ]},
+      { title:"Overcome challenges", category:"Purpose", color:"#9478d4",
+        lines:[
+          ["DO.","Pick one challenge you've been avoiding, and break it down into the smallest possible first step."],
+          ["TIP.","The first step should feel almost too easy — that's the point."],
+          ["START.","Taking that one small step is usually enough to build momentum for the rest."]
+        ]},
+      { title:"Reconnect with your why", category:"Purpose", color:"#b39fe0",
+        lines:[
+          ["DO.","Take five minutes to write down why you do the work you do, beyond the pay cheque."],
+          ["TIP.","Think about who you help, what you build, or what you learn."],
+          ["RETURN.","Keep this note somewhere you'll see it on harder days."]
+        ]},
+      { title:"Grow one skill this month", category:"Purpose", color:"#d1c3ee",
+        lines:[
+          ["DO.","Choose one skill you'd like to build, and identify one small way to practise it this week."],
+          ["TIP.","It could be a course, a conversation, or simply trying something new in your current role."],
+          ["TRACK.","Small, steady growth adds up to real progress over time."]
+        ]},
+    ]
+  },
+
+  meyou: {
+    label: "for me and you",
+    desc: "20 activities to nurture your relationship, together.",
+    tileColors: ["#d45a7a","#d4a63f","#c4703f","#3f9ea0","#3f5ea6"],
+    cards: [
+      { title:"I am proud of you", category:"Appreciation", color:"#d45a7a",
+        lines:[
+          ["DO.","Tell your partner one specific thing you're proud of them for, right now, out loud."],
+          ["TIP.","Be specific — not just \"you're great\" but what they actually did."],
+          ["NOTICE.","Hearing it directly, and often, means more than either of you might expect."]
+        ]},
+      { title:"Learning from each other", category:"Appreciation", color:"#e0798f",
+        lines:[
+          ["DO.","Ask your partner to teach you something they know well, however small."],
+          ["TIP.","It could be a skill, a hobby, or simply how they see something differently to you."],
+          ["ENJOY.","Being a student together is a lovely way to see each other with fresh eyes."]
+        ]},
+      { title:"I have your back", category:"Appreciation", color:"#eb9fac",
+        lines:[
+          ["DO.","Tell your partner about one thing going on in their life right now, and let them know you're there for it."],
+          ["TIP.","Ask what kind of support would actually help, rather than assuming."],
+          ["SHOW UP.","Sometimes just knowing someone has your back changes how a hard week feels."]
+        ]},
+      { title:"Name what you love", category:"Appreciation", color:"#f5c6cf",
+        lines:[
+          ["DO.","Sit together and, taking turns, name one thing about your partner that makes your life better."],
+          ["TIP.","Think about their special qualities, the way they make you feel, or treat you."],
+          ["SHARE.","Explain how those features or actions have a positive impact on you and your life together, and why they are important to you."]
+        ]},
+      { title:"Something exciting", category:"Play", color:"#d4a63f",
+        lines:[
+          ["DO.","Plan one small surprise for your partner this week — nothing has to be expensive or elaborate."],
+          ["TIP.","It could be their favourite snack, a note left somewhere unexpected, or planning something they've mentioned wanting to do."],
+          ["ENJOY.","A little unpredictability keeps things feeling alive."]
+        ]},
+      { title:"Dance it out", category:"Play", color:"#e0bc5f",
+        lines:[
+          ["DO.","Put on a song you both love and dance in the kitchen, right now, no occasion needed."],
+          ["TIP.","It doesn't matter if you're any good at it."],
+          ["LAUGH.","Being silly together is one of the simplest ways to feel close."]
+        ]},
+      { title:"Try something new together", category:"Play", color:"#ecd189",
+        lines:[
+          ["DO.","Pick one thing neither of you has done before, and make a plan to try it this month."],
+          ["TIP.","It doesn't need to be big — a new recipe, a new route on a walk, a new game."],
+          ["NOTICE.","Shared novelty keeps a relationship curious and alive."]
+        ]},
+      { title:"Bring back an old memory", category:"Play", color:"#f5e4b8",
+        lines:[
+          ["DO.","Look through old photos or messages together and pick one memory to talk through in detail."],
+          ["TIP.","Ask each other what you remember most about that moment."],
+          ["SMILE.","Revisiting good memories together is its own kind of quality time."]
+        ]},
+      { title:"Don't go to bed angry", category:"Support", color:"#c4703f",
+        lines:[
+          ["DO.","When something has gone wrong and you have taken it out on your partner, stop for a minute and think about why you suddenly felt upset."],
+          ["TIP.","Is it really because of something they did? Or is it because a series of things accumulated? Or did a certain trigger or negative memory upset you?"],
+          ["TALK.","Learn to recognise when anger or stress is bottling up, communicate about how you feel and unpick your emotions. This way, you will help each other release the tension before it's too late."]
+        ]},
+      { title:"What I need from you", category:"Support", color:"#d4915f",
+        lines:[
+          ["DO.","Tell your partner one specific thing you need from them this week, without expecting them to guess."],
+          ["TIP.","Be concrete — more time together, help with something, or simply to be listened to."],
+          ["ASK.","It's hard to meet a need that's never been said out loud."]
+        ]},
+      { title:"Share the load", category:"Support", color:"#e0b189",
+        lines:[
+          ["DO.","Sit down together and look honestly at what's on both your plates right now."],
+          ["TIP.","Notice if one of you is carrying more, mentally or practically, than the other."],
+          ["REBALANCE.","Small adjustments, offered without being asked, mean a lot."]
+        ]},
+      { title:"Check in properly", category:"Support", color:"#ecceb3",
+        lines:[
+          ["DO.","Ask your partner \"how are you, really?\" and give them your full attention while they answer."],
+          ["TIP.","Put your phone down. Make eye contact. Resist the urge to problem-solve straight away."],
+          ["LISTEN.","Sometimes support just means being fully there."]
+        ]},
+      { title:"My own space", category:"Balance", color:"#3f9ea0",
+        lines:[
+          ["DO.","Carve out a little time this week that belongs only to you, no explanation needed."],
+          ["TIP.","Tell your partner in advance so you both know it's coming, and can support it."],
+          ["RETURN.","Having space of your own makes the time you share even better."]
+        ]},
+      { title:"No phones allowed", category:"Balance", color:"#5fb8ba",
+        lines:[
+          ["DO.","Choose one meal or one hour this week where you both put your phones away completely."],
+          ["TIP.","Put them in another room if you need the temptation removed."],
+          ["NOTICE.","Full attention is one of the simplest gifts you can give each other."]
+        ]},
+      { title:"Our special rituals", category:"Balance", color:"#89ccce",
+        lines:[
+          ["DO.","Choose one small routine that's just yours as a couple, and protect it this week."],
+          ["TIP.","It could be a Sunday coffee, a weekly walk, or a particular way you say goodnight."],
+          ["KEEP IT.","Rituals like these are what make a relationship feel like home."]
+        ]},
+      { title:"Protect your together time", category:"Balance", color:"#b8e2e3",
+        lines:[
+          ["DO.","Look at next week's calendar and block out one evening that's just for the two of you."],
+          ["TIP.","Treat it like any other important commitment, don't let it get bumped."],
+          ["SHOW UP.","Time together needs protecting on purpose, or it easily disappears."]
+        ]},
+      { title:"I am glad you are here", category:"Connection", color:"#3f5ea6",
+        lines:[
+          ["DO.","Tell your partner, plainly and without a reason attached, that you're glad they're in your life."],
+          ["TIP.","Say it at an ordinary moment, not just on special occasions."],
+          ["NOTICE.","Unprompted appreciation often means the most."]
+        ]},
+      { title:"Let's get closer", category:"Connection", color:"#5f7ab8",
+        lines:[
+          ["DO.","Ask your partner one question tonight that you've never asked them before."],
+          ["TIP.","Go beyond the everyday — ask about a dream, a fear, or a memory."],
+          ["LISTEN.","Real closeness grows from real curiosity about each other."]
+        ]},
+      { title:"Tune in and listen", category:"Connection", color:"#89a0cf",
+        lines:[
+          ["DO.","Next time your partner is talking, put down what you're doing and give them your complete attention."],
+          ["TIP.","Resist the urge to plan your response while they're still speaking."],
+          ["REFLECT.","Being truly heard is one of the deepest forms of connection."]
+        ]},
+      { title:"Look each other in the eye", category:"Connection", color:"#b8c9e4",
+        lines:[
+          ["DO.","Take one minute today to simply look at each other, no talking, no distractions."],
+          ["TIP.","It might feel strange at first — that's normal, stay with it."],
+          ["NOTICE.","A minute of real eye contact says more than most conversations do."]
+        ]},
+    ]
+  },
+
+  sleep: {
+    label: "for sleep",
+    desc: "20 wind-down rituals for deeper, easier rest.",
+    tileColors: ["#5a6ea6","#8a7cc7","#4f9e9e","#3a4a63","#7a5a86"],
+    cards: [
+      { title:"Dim the lights early", category:"Wind-down", color:"#5a6ea6",
+        lines:[
+          ["DO.","An hour before bed, switch off the main light and just use a lamp or two."],
+          ["TIP.","Your body reads bright light as a signal to stay awake, so this makes a real difference."],
+          ["SETTLE.","Notice how much calmer the room feels, and let yourself slow down to match it."]
+        ]},
+      { title:"Put tomorrow on paper", category:"Wind-down", color:"#7181b8",
+        lines:[
+          ["DO.","Write down the three things you need to do tomorrow, so your brain doesn't have to hold onto them overnight."],
+          ["TIP.","Keep the notepad by your bed for anything that pops up as you're drifting off."],
+          ["RELEASE.","A written list is easier to let go of than one running in your head."]
+        ]},
+      { title:"Stretch it out", category:"Wind-down", color:"#8a94c7",
+        lines:[
+          ["DO.","Spend five minutes doing slow, gentle stretches before you get into bed."],
+          ["TIP.","Focus on your neck, shoulders and lower back, the places that hold the day's tension."],
+          ["UNWIND.","Physical release often brings mental release with it."]
+        ]},
+      { title:"Read instead of scroll", category:"Wind-down", color:"#a6aed9",
+        lines:[
+          ["DO.","Swap the last twenty minutes of screen time for a few pages of a book."],
+          ["TIP.","Keep it somewhere you can reach easily so it's less effort than picking up your phone."],
+          ["NOTICE.","Your eyes and mind both settle differently with paper than with a screen."]
+        ]},
+      { title:"Cool the room down", category:"Body", color:"#8a7cc7",
+        lines:[
+          ["DO.","Lower the temperature in your bedroom slightly before you get in, even by a couple of degrees."],
+          ["TIP.","A cooler room helps your body reach the temperature drop it needs to fall asleep."],
+          ["FEEL.","Notice how much easier it is to drift off when you're not too warm."]
+        ]},
+      { title:"Warm bath or shower", category:"Body", color:"#9d8fd4",
+        lines:[
+          ["DO.","Take a warm bath or shower an hour or so before bed."],
+          ["TIP.","It's the drop in body temperature afterwards that makes you sleepy, not the warmth itself."],
+          ["RELAX.","Let the whole process be unhurried, not just another task to tick off."]
+        ]},
+      { title:"Breathe your way down", category:"Body", color:"#b0a3e0",
+        lines:[
+          ["DO.","Lying in bed, breathe in for four counts and out for six, for two minutes."],
+          ["TIP.","A longer exhale than inhale calms your nervous system down."],
+          ["SETTLE.","This is a simple, portable tool for whenever your mind is racing at bedtime."]
+        ]},
+      { title:"Notice your body, part by part", category:"Body", color:"#c3b8ec",
+        lines:[
+          ["DO.","Starting at your toes, slowly bring your attention up through your body, relaxing each part as you go."],
+          ["TIP.","If your mind wanders, just gently bring it back to the next body part."],
+          ["DRIFT.","Most people don't make it all the way up before falling asleep."]
+        ]},
+      { title:"Empty the worry jar", category:"Mind", color:"#4f9e9e",
+        lines:[
+          ["DO.","Write down whatever is looping in your mind onto a piece of paper, then close the notebook."],
+          ["TIP.","You're not trying to solve it right now, just get it out of your head."],
+          ["CLOSE.","Tell yourself it will still be there tomorrow, and that's okay."]
+        ]},
+      { title:"Three good things", category:"Mind", color:"#66b0b0",
+        lines:[
+          ["DO.","Before you close your eyes, think of three good moments from today, however small."],
+          ["TIP.","It could be a good coffee, a kind word, a task finished."],
+          ["END WELL.","Ending the day on something good changes the tone of the whole night."]
+        ]},
+      { title:"Picture somewhere calm", category:"Mind", color:"#83c2c2",
+        lines:[
+          ["DO.","Close your eyes and picture a place that makes you feel completely at ease."],
+          ["TIP.","Notice the details, the light, the sounds, the way the air feels."],
+          ["STAY.","Let your mind rest there for a few minutes."]
+        ]},
+      { title:"Let the thought pass", category:"Mind", color:"#a0d4d4",
+        lines:[
+          ["DO.","When a stressful thought arrives, notice it without following it, like watching a cloud pass by."],
+          ["TIP.","You don't need to argue with it or solve it right now."],
+          ["RETURN.","Gently bring your attention back to your breath each time it wanders."]
+        ]},
+      { title:"Make the room just for sleep", category:"Environment", color:"#3a4a63",
+        lines:[
+          ["DO.","Move work, laptops and clutter out of your bedroom if you can."],
+          ["TIP.","Even small changes help, like keeping your phone charging outside the room."],
+          ["ASSOCIATE.","The fewer other activities happen there, the faster your brain learns this room means rest."]
+        ]},
+      { title:"Block out the light", category:"Environment", color:"#4f6180",
+        lines:[
+          ["DO.","Check your curtains or blinds actually block outside light, and add a mask if not."],
+          ["TIP.","Even small amounts of light can interrupt your sleep cycle without you noticing."],
+          ["DARKEN.","A properly dark room makes a bigger difference than most people expect."]
+        ]},
+      { title:"Choose your sounds", category:"Environment", color:"#6c7d9c",
+        lines:[
+          ["DO.","Decide what you want to hear as you fall asleep, whether that's silence, white noise, or something soft."],
+          ["TIP.","Consistency matters more than the specific sound you choose."],
+          ["SETTLE.","The same sound each night becomes its own signal to wind down."]
+        ]},
+      { title:"Reserve your bed for sleep", category:"Environment", color:"#8f9dbb",
+        lines:[
+          ["DO.","Try not to work, eat or scroll while lying in bed."],
+          ["TIP.","If you can't sleep, get up and do something calm elsewhere until you feel tired."],
+          ["RETRAIN.","This helps your brain stop associating your bed with being awake."]
+        ]},
+      { title:"The same steps, every night", category:"Ritual", color:"#7a5a86",
+        lines:[
+          ["DO.","Choose three small steps — brushing teeth, dimming lights, a few pages of reading — and do them in the same order each night."],
+          ["TIP.","It doesn't matter what the steps are, only that they repeat."],
+          ["SIGNAL.","A predictable routine tells your body it's time to slow down."]
+        ]},
+      { title:"A cup of something warm", category:"Ritual", color:"#93739e",
+        lines:[
+          ["DO.","Make a caffeine-free warm drink part of your evening, and notice the small ritual of making it."],
+          ["TIP.","Herbal tea, warm milk, or even just hot water works."],
+          ["PAUSE.","The process matters as much as the drink itself."]
+        ]},
+      { title:"Say goodnight properly", category:"Ritual", color:"#a687b3",
+        lines:[
+          ["DO.","Whether to a partner, a pet, or just yourself, take a moment to properly mark the day as done."],
+          ["TIP.","A simple phrase works: \"that's it for today.\""],
+          ["CLOSE.","Marking an ending helps your mind actually let go of it."]
+        ]},
+      { title:"Same time, most nights", category:"Ritual", color:"#b99bc8",
+        lines:[
+          ["DO.","Pick a bedtime and try to stick close to it, even on weekends."],
+          ["TIP.","Consistency helps more than any single trick on any single night."],
+          ["TRUST.","Give your body a few weeks of the same rhythm before judging whether it's working."]
+        ]},
+    ]
+  },
+
+  anxiety: {
+    label: "for calm",
+    desc: "20 tools to ground yourself when anxiety rises.",
+    tileColors: ["#8a6f4f","#6fa8d8","#d4a04f","#7fa876","#c97f94"],
+    cards: [
+      { title:"Five things you can see", category:"Grounding", color:"#8a6f4f",
+        lines:[
+          ["DO.","Name five things you can see, four you can hear, three you can touch, two you can smell, one you can taste."],
+          ["TIP.","Go slowly, really noticing each one."],
+          ["RETURN.","This pulls your attention out of your head and into the room around you."]
+        ]},
+      { title:"Feel your feet", category:"Grounding", color:"#a1865f",
+        lines:[
+          ["DO.","Press your feet flat into the floor and notice the contact, the weight, the support."],
+          ["TIP.","Do this anywhere, sitting or standing, whenever you feel untethered."],
+          ["GROUND.","Your body is always in the present, even when your mind isn't."]
+        ]},
+      { title:"Hold something solid", category:"Grounding", color:"#b89d75",
+        lines:[
+          ["DO.","Pick up an object near you and describe it in detail — texture, temperature, weight."],
+          ["TIP.","A stone, a mug, a piece of fabric all work well."],
+          ["FOCUS.","Concrete details are an anchor when everything else feels uncertain."]
+        ]},
+      { title:"Name where you are", category:"Grounding", color:"#cfb48b",
+        lines:[
+          ["DO.","Say out loud, or in your head, exactly where you are right now — the room, the day, the time."],
+          ["TIP.","Add one true, neutral fact: \"I am safe right now.\""],
+          ["ARRIVE.","Simple facts can interrupt a spiral of worry."]
+        ]},
+      { title:"Box breathing", category:"Breathing", color:"#6fa8d8",
+        lines:[
+          ["DO.","Breathe in for four counts, hold for four, out for four, hold for four."],
+          ["TIP.","Repeat the square four or five times."],
+          ["SLOW.","This evens out your breathing and calms your nervous system."]
+        ]},
+      { title:"Longer out than in", category:"Breathing", color:"#87b9df",
+        lines:[
+          ["DO.","Breathe in for a count of four, and out for a count of six or seven."],
+          ["TIP.","The longer exhale is what signals your body to relax."],
+          ["REPEAT.","Do this for one minute whenever things feel like too much."]
+        ]},
+      { title:"Hand on your belly", category:"Breathing", color:"#9fcae6",
+        lines:[
+          ["DO.","Place one hand on your chest and one on your belly, and breathe so only the lower hand moves."],
+          ["TIP.","This is a sign you're breathing from your diaphragm, not your chest."],
+          ["DEEPEN.","Shallow chest breathing keeps anxiety going, deep breathing interrupts it."]
+        ]},
+      { title:"Sigh it out", category:"Breathing", color:"#b7dbed",
+        lines:[
+          ["DO.","Take a deep breath in, then let it out with an audible sigh."],
+          ["TIP.","Do this two or three times in a row."],
+          ["RELEASE.","A physical sigh genuinely helps discharge built-up tension."]
+        ]},
+      { title:"What would you tell a friend?", category:"Reframe", color:"#d4a04f",
+        lines:[
+          ["DO.","Say the worry out loud as if a friend told it to you, then answer as you would answer them."],
+          ["TIP.","We're often kinder and more reasonable with others than ourselves."],
+          ["REFRAME.","Borrow that kindness for yourself."]
+        ]},
+      { title:"Is it true, or does it feel true?", category:"Reframe", color:"#dbb066",
+        lines:[
+          ["DO.","Ask yourself: what's the actual evidence for this worry, versus how it feels?"],
+          ["TIP.","Anxiety often presents feelings as facts."],
+          ["SEPARATE.","Naming the difference can loosen its grip."]
+        ]},
+      { title:"Zoom out", category:"Reframe", color:"#e2c07e",
+        lines:[
+          ["DO.","Ask yourself how much this will matter in a week, a month, a year."],
+          ["TIP.","This isn't about dismissing the feeling, just widening the view."],
+          ["PERSPECTIVE.","Most things that feel huge today shrink with distance."]
+        ]},
+      { title:"Name the worst and the likely", category:"Reframe", color:"#e9d096",
+        lines:[
+          ["DO.","Write down the worst-case outcome, then the most likely one, next to each other."],
+          ["TIP.","Anxiety tends to fixate on the worst case as if it were the likely one."],
+          ["COMPARE.","Seeing them side by side helps recalibrate."]
+        ]},
+      { title:"Shake it out", category:"Body", color:"#7fa876",
+        lines:[
+          ["DO.","Stand up and physically shake your hands, arms, and legs for thirty seconds."],
+          ["TIP.","It might feel silly, that's fine, do it anyway."],
+          ["DISCHARGE.","Anxiety lives in the body, and movement helps release it."]
+        ]},
+      { title:"Tense and release", category:"Body", color:"#94b98c",
+        lines:[
+          ["DO.","Clench your fists tightly for five seconds, then release completely."],
+          ["TIP.","Work up through your body — feet, legs, hands, shoulders, jaw."],
+          ["NOTICE.","The contrast makes relaxation easier to feel and find."]
+        ]},
+      { title:"Cold water on your wrists", category:"Body", color:"#a9caa2",
+        lines:[
+          ["DO.","Run cool water over your wrists or splash your face."],
+          ["TIP.","This is a genuine physiological reset, not just a distraction."],
+          ["INTERRUPT.","It can help break a spiral before it builds further."]
+        ]},
+      { title:"Walk it off", category:"Body", color:"#c0dbb8",
+        lines:[
+          ["DO.","Take a short walk, even just around the block or up and down a hallway."],
+          ["TIP.","Notice your feet hitting the ground with each step."],
+          ["MOVE.","Movement helps process the stress hormones anxiety produces."]
+        ]},
+      { title:"Write it, then close it", category:"Release", color:"#c97f94",
+        lines:[
+          ["DO.","Write down exactly what you're anxious about, without editing yourself."],
+          ["TIP.","Then physically close the notebook or put down the pen."],
+          ["CONTAIN.","Giving it a place outside your head can be a relief in itself."]
+        ]},
+      { title:"Say it out loud to someone", category:"Release", color:"#d494a6",
+        lines:[
+          ["DO.","Tell one person, in plain words, what you're feeling anxious about."],
+          ["TIP.","You don't need them to fix it, just to hear it."],
+          ["SHARE.","Anxiety often shrinks a little just from being spoken."]
+        ]},
+      { title:"Set a worry time", category:"Release", color:"#dfa9b8",
+        lines:[
+          ["DO.","If a worry arrives at an inconvenient moment, tell yourself you'll think about it properly later, and set a time."],
+          ["TIP.","Often, by the time that slot arrives, it feels smaller."],
+          ["POSTPONE.","This isn't avoidance, it's giving worry a boundary."]
+        ]},
+      { title:"Do one small, calm thing", category:"Release", color:"#eabfca",
+        lines:[
+          ["DO.","Choose one small, unrelated task — tidy a drawer, water a plant — and do it slowly."],
+          ["TIP.","Let it be an anchor of normal life amid the anxious feeling."],
+          ["GROUND.","Small, ordinary actions remind you that life is still moving steadily."]
+        ]},
+    ]
+  },
+
+  family: {
+    label: "for family",
+    desc: "20 activities to connect and grow together at home.",
+    tileColors: ["#d4715f","#6f92c4","#d9b84f","#7fa85f","#a67f5f"],
+    cards: [
+      { title:"Ask one real question", category:"Connection", color:"#d4715f",
+        lines:[
+          ["DO.","At dinner, ask each family member one question that isn't \"how was your day\", like \"what made you laugh today?\""],
+          ["TIP.","Go around the table so everyone gets a turn."],
+          ["LISTEN.","Real questions get real answers."]
+        ]},
+      { title:"Ten minutes, no phones", category:"Connection", color:"#dc8a7a",
+        lines:[
+          ["DO.","Set aside ten minutes where everyone puts their phone away and just talks or plays together."],
+          ["TIP.","It can be right after dinner or before bed."],
+          ["SHOW UP.","Small pockets of full attention add up."]
+        ]},
+      { title:"Say what you noticed", category:"Connection", color:"#e3a494",
+        lines:[
+          ["DO.","Tell a family member something specific you noticed about them today."],
+          ["TIP.","\"I saw you helping your sister\" means more than a generic compliment."],
+          ["NOTICE.","Being truly seen matters, especially to kids."]
+        ]},
+      { title:"Family handshake or hug", category:"Connection", color:"#ebbfb3",
+        lines:[
+          ["DO.","Create a small physical ritual — a handshake, a hug, a high five — for greetings or goodbyes."],
+          ["TIP.","Let kids help invent it, they'll take it seriously."],
+          ["CONNECT.","Small physical rituals build a sense of belonging."]
+        ]},
+      { title:"Count to five first", category:"Patience", color:"#6f92c4",
+        lines:[
+          ["DO.","Next time you feel frustration rising, count to five before responding."],
+          ["TIP.","Those few seconds are often enough to choose your words more calmly."],
+          ["PAUSE.","A short pause changes the whole interaction."]
+        ]},
+      { title:"Get down to their level", category:"Patience", color:"#87a4d0",
+        lines:[
+          ["DO.","Next time you need to talk to a child about something, crouch or sit so you're at their eye level."],
+          ["TIP.","It changes the tone from towering over them to being with them."],
+          ["CONNECT.","Eye level conversations tend to go better for everyone."]
+        ]},
+      { title:"Name the feeling, not just the behaviour", category:"Patience", color:"#a0b6dc",
+        lines:[
+          ["DO.","Instead of only addressing what happened, name what you think they might be feeling."],
+          ["TIP.","\"You seem really frustrated\" often defuses more than a direct correction."],
+          ["UNDERSTAND.","Feeling understood often comes before feeling calm."]
+        ]},
+      { title:"Take your own break", category:"Patience", color:"#b9c8e7",
+        lines:[
+          ["DO.","If you feel your patience running out, step away for a minute if you safely can."],
+          ["TIP.","\"I need a moment\" is a complete sentence, even with kids."],
+          ["RESET.","You can't pour from an empty cup."]
+        ]},
+      { title:"Let them choose the game", category:"Play", color:"#d9b84f",
+        lines:[
+          ["DO.","Let a family member pick tonight's activity, even if it's not your first choice."],
+          ["TIP.","Commit to it fully for the time you've agreed."],
+          ["ENJOY.","Play matters more than which game you play."]
+        ]},
+      { title:"Build something together", category:"Play", color:"#e0c46e",
+        lines:[
+          ["DO.","Spend twenty minutes building or making something as a family — blocks, a fort, a drawing."],
+          ["TIP.","Let go of it needing to look a particular way."],
+          ["CREATE.","The shared process matters more than the result."]
+        ]},
+      { title:"Silly voices, no judgement", category:"Play", color:"#e7d18c",
+        lines:[
+          ["DO.","Read a story or tell a joke using an over the top silly voice."],
+          ["TIP.","The sillier, the better, especially with younger kids."],
+          ["LAUGH.","Shared laughter is one of the fastest ways to connect."]
+        ]},
+      { title:"Have a dance break", category:"Play", color:"#eedeaa",
+        lines:[
+          ["DO.","Put on a song and have a two minute family dance party, wherever you are."],
+          ["TIP.","No rules, no good or bad dancing allowed."],
+          ["RELEASE.","It's a quick reset for everyone's mood."]
+        ]},
+      { title:"Three good things at dinner", category:"Gratitude", color:"#7fa85f",
+        lines:[
+          ["DO.","Take turns sharing one good thing that happened today."],
+          ["TIP.","Keep it simple, even \"lunch was good\" counts."],
+          ["NOTICE.","This trains everyone to look for the good, not just the hard parts."]
+        ]},
+      { title:"Thank you notes", category:"Gratitude", color:"#96bb78",
+        lines:[
+          ["DO.","Help a child write or draw a thank you note for someone who did something kind for them."],
+          ["TIP.","It doesn't need to be a special occasion."],
+          ["APPRECIATE.","Practising gratitude regularly makes it a habit, not an event."]
+        ]},
+      { title:"Say thank you to each other", category:"Gratitude", color:"#addd91",
+        lines:[
+          ["DO.","Each family member says thank you to another for something specific from today."],
+          ["TIP.","Rotate who goes first so everyone gets noticed."],
+          ["RECOGNISE.","Being thanked by family members you live with every day still matters."]
+        ]},
+      { title:"Notice the small stuff", category:"Gratitude", color:"#c4e6aa",
+        lines:[
+          ["DO.","Point out one small nice thing during an ordinary moment — a pretty sky, a good smell from dinner."],
+          ["TIP.","Model noticing out loud so kids learn to do it too."],
+          ["PAUSE.","Gratitude is a skill built in small, ordinary moments."]
+        ]},
+      { title:"A steady morning start", category:"Routines", color:"#a67f5f",
+        lines:[
+          ["DO.","Pick one small, calm thing to do together each morning, even just a hug at the door."],
+          ["TIP.","Keep it short enough that it fits even on busy days."],
+          ["GROUND.","Predictable starts make the rest of the day feel steadier."]
+        ]},
+      { title:"Sunday planning together", category:"Routines", color:"#b89676",
+        lines:[
+          ["DO.","Spend fifteen minutes as a family looking at the week ahead."],
+          ["TIP.","Let kids help mark what they're looking forward to."],
+          ["PREPARE.","Knowing what's coming reduces stress for everyone."]
+        ]},
+      { title:"A consistent wind-down", category:"Routines", color:"#caac8d",
+        lines:[
+          ["DO.","Build a simple, repeatable bedtime routine — bath, book, lights out."],
+          ["TIP.","The order matters more than the specific activities."],
+          ["SIGNAL.","Predictability helps kids (and adults) feel safe."]
+        ]},
+      { title:"One meal, together, no screens", category:"Routines", color:"#dcc2a4",
+        lines:[
+          ["DO.","Choose one meal a week where everyone eats together without devices."],
+          ["TIP.","Start with just one meal if that's more realistic than every day."],
+          ["GATHER.","Regular shared meals build connection over time, not all at once."]
+        ]},
+    ]
+  },
+
+  friends: {
+    label: "for friends",
+    desc: "20 activities to keep your friendships close.",
+    tileColors: ["#d4708f","#d98f4f","#5f84a6","#4f8f8a","#8a749e"],
+    cards: [
+      { title:"Tell them why", category:"Appreciation", color:"#d4708f",
+        lines:[
+          ["DO.","Message a friend and tell them one specific reason you value them."],
+          ["TIP.","Be concrete, not just \"you're great.\""],
+          ["NOTICE.","Specific appreciation lands differently than a general compliment."]
+        ]},
+      { title:"Celebrate their win", category:"Appreciation", color:"#dc87a2",
+        lines:[
+          ["DO.","Reach out about something good that happened to a friend recently, even if it's small."],
+          ["TIP.","Ask a follow-up question, show you actually remembered."],
+          ["CELEBRATE.","Being genuinely happy for a friend deepens the friendship."]
+        ]},
+      { title:"Thank them for showing up", category:"Appreciation", color:"#e39fb5",
+        lines:[
+          ["DO.","Think of a time a friend was there for you, and tell them you still remember it."],
+          ["TIP.","It doesn't have to be recent."],
+          ["ACKNOWLEDGE.","Naming it out loud means more than assuming they know."]
+        ]},
+      { title:"Say it without a reason", category:"Appreciation", color:"#ebb8c8",
+        lines:[
+          ["DO.","Send a friend a message just to say you appreciate them, with no occasion attached."],
+          ["TIP.","Unprompted appreciation often means the most."],
+          ["SURPRISE.","It doesn't need a birthday or a big event as an excuse."]
+        ]},
+      { title:"Plan something silly", category:"Fun", color:"#d98f4f",
+        lines:[
+          ["DO.","Suggest doing something a bit ridiculous together — mini golf, a bad movie night, karaoke."],
+          ["TIP.","Low stakes, high fun, that's the goal."],
+          ["ENJOY.","Shared silliness is a fast track to closeness."]
+        ]},
+      { title:"Revisit an old joke", category:"Fun", color:"#e0a66e",
+        lines:[
+          ["DO.","Bring up an inside joke or shared memory that always makes you both laugh."],
+          ["TIP.","It works even over text."],
+          ["LAUGH.","Old jokes are a shortcut back to connection."]
+        ]},
+      { title:"Try something new together", category:"Fun", color:"#e7bc8d",
+        lines:[
+          ["DO.","Pick an activity neither of you has done before and plan to try it."],
+          ["TIP.","It could be as simple as a new recipe or a new walk."],
+          ["EXPLORE.","Novelty keeps friendships feeling alive."]
+        ]},
+      { title:"Send something that made you laugh", category:"Fun", color:"#eed2ac",
+        lines:[
+          ["DO.","Share a meme, video or story that reminded you of your friend."],
+          ["TIP.","Add a note on why it made you think of them."],
+          ["SHARE.","Small unprompted messages keep a friendship warm between big hangouts."]
+        ]},
+      { title:"Check in properly", category:"Support", color:"#5f84a6",
+        lines:[
+          ["DO.","Ask a friend how they're really doing, and actually wait for the real answer."],
+          ["TIP.","Follow \"I'm fine\" with \"no, really, how are you?\""],
+          ["LISTEN.","Most people need to be asked twice before they'll be honest."]
+        ]},
+      { title:"Offer, don't just ask", category:"Support", color:"#7998b6",
+        lines:[
+          ["DO.","Instead of \"let me know if you need anything,\" offer something specific: \"can I bring you dinner Tuesday?\""],
+          ["TIP.","Specific offers are easier to accept than open ones."],
+          ["SUPPORT.","Vague offers often go unused out of politeness."]
+        ]},
+      { title:"Show up in person", category:"Support", color:"#93adc6",
+        lines:[
+          ["DO.","If a friend is going through something hard, show up rather than just texting."],
+          ["TIP.","Even a short visit means more than a long message."],
+          ["BE THERE.","Presence often says more than words can."]
+        ]},
+      { title:"Remember the hard date", category:"Support", color:"#adc2d6",
+        lines:[
+          ["DO.","If a friend has a difficult anniversary or hard day coming up, mark it and reach out."],
+          ["TIP.","A simple \"thinking of you today\" is enough."],
+          ["REMEMBER.","Being remembered on hard days matters more than people say."]
+        ]},
+      { title:"Say the kind, true thing", category:"Honesty", color:"#4f8f8a",
+        lines:[
+          ["DO.","Tell a friend something honest and kind that you've been holding back."],
+          ["TIP.","Lead with care, not criticism."],
+          ["SPEAK.","Honesty offered with warmth builds trust, not distance."]
+        ]},
+      { title:"Ask for what you need", category:"Honesty", color:"#68a29d",
+        lines:[
+          ["DO.","Tell a friend directly what you need from them right now, rather than hoping they'll guess."],
+          ["TIP.","Be specific and kind about it."],
+          ["ASK.","Clear asks are easier for friends to meet than hints."]
+        ]},
+      { title:"Apologise properly", category:"Honesty", color:"#82b5b0",
+        lines:[
+          ["DO.","If you owe a friend an apology, however small, give it without over-explaining."],
+          ["TIP.","\"I'm sorry, I was wrong\" is enough."],
+          ["REPAIR.","A clean apology repairs faster than a defensive one."]
+        ]},
+      { title:"Set a boundary kindly", category:"Honesty", color:"#9cc8c3",
+        lines:[
+          ["DO.","If something in the friendship isn't working for you, say so gently and directly."],
+          ["TIP.","You can be honest and kind at the same time."],
+          ["RESPECT.","Healthy friendships can hold honest boundaries."]
+        ]},
+      { title:"Look back together", category:"Memories", color:"#8a749e",
+        lines:[
+          ["DO.","Go through old photos or messages with a friend and reminisce out loud."],
+          ["TIP.","Ask \"do you remember when...\" and let the stories flow."],
+          ["REVISIT.","Shared history is one of the deepest parts of any friendship."]
+        ]},
+      { title:"Recreate a favourite moment", category:"Memories", color:"#9c8bad",
+        lines:[
+          ["DO.","Plan to recreate something you did together that you both loved."],
+          ["TIP.","It doesn't need to be identical, just in the same spirit."],
+          ["RETURN.","Revisiting good memories together makes new ones too."]
+        ]},
+      { title:"Write down a memory", category:"Memories", color:"#aea1bc",
+        lines:[
+          ["DO.","Write a friend a short note about a specific memory you shared that you still treasure."],
+          ["TIP.","Give or send it to them, don't just keep it to yourself."],
+          ["SHARE.","Told memories keep growing; untold ones fade."]
+        ]},
+      { title:"Ask about their favourite memory", category:"Memories", color:"#c0b6cb",
+        lines:[
+          ["DO.","Ask a friend what their favourite memory of the two of you is."],
+          ["TIP.","You might be surprised by what they choose."],
+          ["LISTEN.","What they remember tells you what mattered most to them."]
+        ]},
+    ]
+  },
+
+  students: {
+    label: "for students",
+    desc: "20 activities for focus, motivation and calm study.",
+    tileColors: ["#5f6fbf","#d9a64f","#7fab7f","#6fb0d4","#d9705f"],
+    cards: [
+      { title:"One task, one timer", category:"Focus", color:"#5f6fbf",
+        lines:[
+          ["DO.","Pick a single task and set a timer for twenty five minutes of focused work on just that."],
+          ["TIP.","Put your phone somewhere out of reach for the duration."],
+          ["COMMIT.","A defined block is easier to start than \"study for a while.\""]
+        ]},
+      { title:"Clear the desk first", category:"Focus", color:"#7886c9",
+        lines:[
+          ["DO.","Before you start, spend two minutes clearing everything off your desk except what you need."],
+          ["TIP.","A cluttered space often means a cluttered focus."],
+          ["BEGIN.","Starting clean makes starting easier."]
+        ]},
+      { title:"Write down the distraction", category:"Focus", color:"#919dd4",
+        lines:[
+          ["DO.","When a stray thought interrupts you, jot it on a notepad instead of chasing it."],
+          ["TIP.","You can deal with it later, it's now safely out of your head."],
+          ["RETURN.","This lets you stay with your task instead of your thought."]
+        ]},
+      { title:"Study where you only study", category:"Focus", color:"#aab3df",
+        lines:[
+          ["DO.","Pick one spot that's just for studying, not your bed, not where you relax."],
+          ["TIP.","Your brain learns to associate that spot with focus over time."],
+          ["ASSOCIATE.","Location becomes its own cue to concentrate."]
+        ]},
+      { title:"Remember your why", category:"Motivation", color:"#d9a64f",
+        lines:[
+          ["DO.","Write down, in one sentence, why this subject or goal actually matters to you."],
+          ["TIP.","Keep it somewhere you'll see it when motivation dips."],
+          ["RETURN.","A clear reason is more durable than a fleeting mood."]
+        ]},
+      { title:"Start absurdly small", category:"Motivation", color:"#e0b66e",
+        lines:[
+          ["DO.","If you're stuck, commit to just five minutes of work, nothing more."],
+          ["TIP.","Often the hardest part is starting, not continuing."],
+          ["BEGIN.","Five minutes frequently turns into much more once you're in it."]
+        ]},
+      { title:"Picture finishing", category:"Motivation", color:"#e7c68d",
+        lines:[
+          ["DO.","Take thirty seconds to picture how it will feel once this task is actually done."],
+          ["TIP.","Really imagine the relief, not just the outcome."],
+          ["VISUALISE.","That feeling can pull you through the middle part."]
+        ]},
+      { title:"Reward the effort, not just results", category:"Motivation", color:"#eed6ac",
+        lines:[
+          ["DO.","Plan a small reward for putting in the work, regardless of the outcome."],
+          ["TIP.","Effort is the part you control, so celebrate it."],
+          ["ACKNOWLEDGE.","This keeps motivation going even when results are slow to show."]
+        ]},
+      { title:"Name what's actually stressing you", category:"Stress relief", color:"#7fab7f",
+        lines:[
+          ["DO.","Write down specifically what's worrying you about your workload right now."],
+          ["TIP.","Vague dread is heavier than a named, specific worry."],
+          ["CLARIFY.","Naming it is often the first step to managing it."]
+        ]},
+      { title:"Break it into next steps", category:"Stress relief", color:"#96bd96",
+        lines:[
+          ["DO.","Take one big overwhelming task and write down just the very next small step."],
+          ["TIP.","You only need to know the next step, not the whole path."],
+          ["SIMPLIFY.","Overwhelm often comes from seeing the whole mountain at once."]
+        ]},
+      { title:"Move your body", category:"Stress relief", color:"#adceac",
+        lines:[
+          ["DO.","Step away and do something physical for five minutes — a walk, stretching, some jumping jacks."],
+          ["TIP.","This isn't procrastination, it's a genuine reset."],
+          ["RELEASE.","Stress hormones need movement to clear, not just willpower."]
+        ]},
+      { title:"Talk to someone about it", category:"Stress relief", color:"#c3dfc3",
+        lines:[
+          ["DO.","Tell a friend, family member or teacher what's actually stressing you out."],
+          ["TIP.","You don't need them to fix it, just to hear it."],
+          ["SHARE.","Stress shrinks a little just from being spoken out loud."]
+        ]},
+      { title:"Step away from the screen", category:"Breaks", color:"#6fb0d4",
+        lines:[
+          ["DO.","Every hour, look away from your screen for a couple of minutes and focus on something distant."],
+          ["TIP.","This rests your eyes as much as your mind."],
+          ["RESET.","Short, regular breaks help more than one long one at the end."]
+        ]},
+      { title:"Make it a real break", category:"Breaks", color:"#87c0dd",
+        lines:[
+          ["DO.","During breaks, do something that has nothing to do with studying, not related videos or messages."],
+          ["TIP.","Stretch, get a snack, step outside."],
+          ["SEPARATE.","A real break refreshes you more than a half-break does."]
+        ]},
+      { title:"Set a timer for rest too", category:"Breaks", color:"#9fd0e6",
+        lines:[
+          ["DO.","Just as you time your work, time your breaks so they don't run long."],
+          ["TIP.","Ten to fifteen minutes is usually enough."],
+          ["RETURN.","A timed break is easier to come back from."]
+        ]},
+      { title:"End the day properly", category:"Breaks", color:"#b7dfef",
+        lines:[
+          ["DO.","Choose one small ritual that marks study time as over for the day."],
+          ["TIP.","Closing your laptop, tidying your desk, both work."],
+          ["CLOSE.","A clear ending helps you actually switch off and rest."]
+        ]},
+      { title:"List what you already know", category:"Confidence", color:"#d9705f",
+        lines:[
+          ["DO.","Before a test or presentation, write down everything you're confident about already."],
+          ["TIP.","It's usually more than it feels like in the moment."],
+          ["REMEMBER.","Confidence often just needs reminding, not building from scratch."]
+        ]},
+      { title:"Talk to yourself like a friend", category:"Confidence", color:"#e08978",
+        lines:[
+          ["DO.","Notice your internal voice before something stressful, and speak to yourself as you would to a friend."],
+          ["TIP.","Swap \"I'm going to fail\" for \"I've prepared for this.\""],
+          ["REFRAME.","Self-talk shapes how capable you actually feel."]
+        ]},
+      { title:"Recall a past success", category:"Confidence", color:"#e7a291",
+        lines:[
+          ["DO.","Think of a time you were nervous about something and it went okay anyway."],
+          ["TIP.","Specific memories work better than general reassurance."],
+          ["TRUST.","Past evidence is a strong antidote to present nerves."]
+        ]},
+      { title:"Prepare, then let go", category:"Confidence", color:"#eebcae",
+        lines:[
+          ["DO.","Once you've done the preparation you can, consciously decide you've done enough."],
+          ["TIP.","Endless extra preparation often just feeds anxiety, not readiness."],
+          ["TRUST.","At some point, trust the work you've already put in."]
+        ]},
+    ]
+  },
+
+  newparents: {
+    label: "for new parents",
+    desc: "20 gentle activities for the early days of parenthood.",
+    tileColors: ["#c97f94","#d4a855","#6f7fbf","#7fab7f","#c4805f"],
+    cards: [
+      { title:"Five minutes, just for you", category:"Self-care", color:"#c97f94",
+        lines:[
+          ["DO.","Find five minutes today that belong only to you — a coffee, a shower, a song."],
+          ["TIP.","It doesn't need permission or a big block of time."],
+          ["RECHARGE.","Tiny pockets of self-care still count."]
+        ]},
+      { title:"Eat something properly", category:"Self-care", color:"#d194a5",
+        lines:[
+          ["DO.","Sit down, even briefly, and eat a proper meal rather than snacking standing up."],
+          ["TIP.","Prep something simple in advance if you can, for the days you can't manage more."],
+          ["NOURISH.","You can't run on empty for long."]
+        ]},
+      { title:"Ask for one hour", category:"Self-care", color:"#daa9b6",
+        lines:[
+          ["DO.","Ask a partner, friend or family member for one hour to yourself this week."],
+          ["TIP.","Be specific about when, it's easier for people to say yes to."],
+          ["ACCEPT.","Needing time to yourself doesn't make you a less devoted parent."]
+        ]},
+      { title:"Lower the bar today", category:"Self-care", color:"#e3bfc8",
+        lines:[
+          ["DO.","Pick one thing you can let go of today, without guilt."],
+          ["TIP.","The dishes, the tidy house, an email — choose something."],
+          ["RELEASE.","Some days, surviving well is enough."]
+        ]},
+      { title:"Skin to skin", category:"Bonding", color:"#d4a855",
+        lines:[
+          ["DO.","Spend a few quiet minutes holding your baby with skin to skin contact, no phone, no distractions."],
+          ["TIP.","This calms both of you, not just the baby."],
+          ["CONNECT.","Simple closeness is often the most powerful bonding tool there is."]
+        ]},
+      { title:"Narrate your day", category:"Bonding", color:"#dcb96f",
+        lines:[
+          ["DO.","Talk to your baby about what you're doing, even simple things like making tea."],
+          ["TIP.","It feels strange at first, that's normal."],
+          ["TALK.","Your voice is deeply comforting, regardless of the words."]
+        ]},
+      { title:"Make eye contact during feeds", category:"Bonding", color:"#e3c889",
+        lines:[
+          ["DO.","During a feed, put your phone down and just look at your baby."],
+          ["TIP.","These small, quiet moments add up more than you'd think."],
+          ["NOTICE.","Presence in ordinary moments builds connection over time."]
+        ]},
+      { title:"Sing, even badly", category:"Bonding", color:"#ebd7a4",
+        lines:[
+          ["DO.","Sing to your baby, it doesn't matter if you're any good."],
+          ["TIP.","Familiar, repeated songs become comforting to them."],
+          ["ENJOY.","Your voice matters far more than your pitch."]
+        ]},
+      { title:"Sleep when you can, not just at night", category:"Rest", color:"#6f7fbf",
+        lines:[
+          ["DO.","If your baby naps, let yourself rest too, even for twenty minutes."],
+          ["TIP.","The chores will still be there later."],
+          ["PRIORITISE.","Rest is not optional right now, it's part of the job."]
+        ]},
+      { title:"Trade off with your partner", category:"Rest", color:"#8896c9",
+        lines:[
+          ["DO.","Agree on a shift so each of you gets one uninterrupted block of sleep."],
+          ["TIP.","Even a few hours makes a real difference."],
+          ["SHARE.","You don't both need to be exhausted at once."]
+        ]},
+      { title:"Rest without guilt", category:"Rest", color:"#a1acd4",
+        lines:[
+          ["DO.","When you get a moment to rest, actually rest instead of using it to catch up on chores."],
+          ["TIP.","Your body needs recovery more than a clean kitchen does right now."],
+          ["ALLOW.","Rest is productive, even when it doesn't look like it."]
+        ]},
+      { title:"Ask someone to hold the baby", category:"Rest", color:"#bac2df",
+        lines:[
+          ["DO.","If someone offers to help, let them hold the baby while you lie down, even briefly."],
+          ["TIP.","Accepting help is a skill worth practising."],
+          ["REST.","You don't have to do this every moment alone."]
+        ]},
+      { title:"Say what you actually need", category:"Support", color:"#7fab7f",
+        lines:[
+          ["DO.","Tell your partner or a visitor exactly what would help, rather than hoping they'll guess."],
+          ["TIP.","\"Could you do the dishes\" is more useful than \"I'm so tired.\""],
+          ["ASK.","Specific requests are easier for people to meet."]
+        ]},
+      { title:"Find your people", category:"Support", color:"#96bd96",
+        lines:[
+          ["DO.","Reach out to one other parent, in person or online, who understands what you're going through."],
+          ["TIP.","You don't need advice, just someone who gets it."],
+          ["CONNECT.","Shared experience is its own kind of relief."]
+        ]},
+      { title:"Let go of doing it \"right\"", category:"Support", color:"#adceac",
+        lines:[
+          ["DO.","Remind yourself there's no single correct way, only what works for your family."],
+          ["TIP.","Advice from all directions can be loud, take what's useful and leave the rest."],
+          ["TRUST.","You know your baby better than anyone else does."]
+        ]},
+      { title:"Accept the small offers", category:"Support", color:"#c3dfc3",
+        lines:[
+          ["DO.","Next time someone offers to bring food or run an errand, say yes."],
+          ["TIP.","People generally want to help, let them."],
+          ["ACCEPT.","You're not meant to do this entirely alone."]
+        ]},
+      { title:"This phase will pass", category:"Patience", color:"#c4805f",
+        lines:[
+          ["DO.","When something feels endless, remind yourself that this exact phase is temporary."],
+          ["TIP.","Write it down somewhere you'll see it on hard days."],
+          ["REMEMBER.","Nothing about a baby's needs stays the same for long."]
+        ]},
+      { title:"Breathe before you react", category:"Patience", color:"#cd9678",
+        lines:[
+          ["DO.","In a frustrating moment, take one slow breath before responding."],
+          ["TIP.","That pause is often enough to reset your tone."],
+          ["PAUSE.","A calmer you helps a calmer baby."]
+        ]},
+      { title:"Lower your expectations of today", category:"Patience", color:"#d6ac92",
+        lines:[
+          ["DO.","Start the day expecting less to get done, not more."],
+          ["TIP.","This isn't giving up, it's being realistic."],
+          ["ADJUST.","Fewer expectations means less frustration when plans shift."]
+        ]},
+      { title:"Give yourself the grace you'd give a friend", category:"Patience", color:"#e0c2ac",
+        lines:[
+          ["DO.","Notice how you'd comfort a friend struggling like this, and offer yourself the same words."],
+          ["TIP.","You're likely far harder on yourself than you'd ever be on someone else."],
+          ["FORGIVE.","New parenting is hard for everyone, not just you."]
+        ]},
+    ]
+  },
+
+  grief: {
+    label: "for grief",
+    desc: "20 gentle ways to hold loss, remembrance and healing.",
+    tileColors: ["#c4935f","#6f85a6","#7f9e7f","#b97f8f","#8a7ea6"],
+    cards: [
+      { title:"Tell a story about them", category:"Remembering", color:"#c4935f",
+        lines:[
+          ["DO.","Share a specific memory or story about the person you lost with someone else."],
+          ["TIP.","Choose one that makes you smile, if you can."],
+          ["HONOUR.","Speaking their name and stories keeps them present."]
+        ]},
+      { title:"Keep something close", category:"Remembering", color:"#cda578",
+        lines:[
+          ["DO.","Choose a small object connected to them to keep somewhere you'll see it."],
+          ["TIP.","It could be a photo, a piece of clothing, a handwritten note."],
+          ["HOLD.","Physical reminders can offer real comfort."]
+        ]},
+      { title:"Mark the date", category:"Remembering", color:"#d6b791",
+        lines:[
+          ["DO.","On a birthday or anniversary, plan something small to honour them, rather than letting the day pass unmarked."],
+          ["TIP.","It could be as simple as lighting a candle or visiting somewhere meaningful."],
+          ["REMEMBER.","Anticipating the hard day is often easier than being surprised by it."]
+        ]},
+      { title:"Write them a letter", category:"Remembering", color:"#e0c9ab",
+        lines:[
+          ["DO.","Write a letter to the person you lost, saying whatever you haven't been able to say."],
+          ["TIP.","There's no right or wrong thing to write."],
+          ["EXPRESS.","This is for you, not for anyone else to read."]
+        ]},
+      { title:"Let the wave come", category:"Processing", color:"#6f85a6",
+        lines:[
+          ["DO.","When grief hits unexpectedly, let yourself feel it rather than pushing it away."],
+          ["TIP.","Find somewhere private if you need to, but don't fight the feeling."],
+          ["ALLOW.","Grief moves through you more easily when it's not resisted."]
+        ]},
+      { title:"Name what you're feeling", category:"Processing", color:"#8899b5",
+        lines:[
+          ["DO.","Try to name the specific feeling underneath the grief — sadness, anger, guilt, relief."],
+          ["TIP.","More than one can be true at once, and that's normal."],
+          ["NOTICE.","Naming a feeling can make it slightly easier to hold."]
+        ]},
+      { title:"There's no timeline", category:"Processing", color:"#a1aec3",
+        lines:[
+          ["DO.","Remind yourself that grief doesn't follow a schedule, some days will be harder than others, unpredictably."],
+          ["TIP.","A hard day months later doesn't mean you're doing it wrong."],
+          ["ACCEPT.","Grief moves in waves, not straight lines."]
+        ]},
+      { title:"Journal without a goal", category:"Processing", color:"#bbc4d2",
+        lines:[
+          ["DO.","Write freely about how you're feeling, without trying to make sense of it or find conclusions."],
+          ["TIP.","Let it be messy, this isn't for anyone else to read."],
+          ["RELEASE.","Getting it out of your head can bring real relief."]
+        ]},
+      { title:"Say what kind of help you need", category:"Support", color:"#7f9e7f",
+        lines:[
+          ["DO.","Tell someone specifically what would help right now, company, silence, practical help."],
+          ["TIP.","People often want to support you but don't know how."],
+          ["GUIDE.","Specific requests are easier for others to meet."]
+        ]},
+      { title:"Let someone sit with you", category:"Support", color:"#95af95",
+        lines:[
+          ["DO.","Ask someone to simply be with you, without needing to talk or fix anything."],
+          ["TIP.","Presence is often more valuable than words."],
+          ["ACCEPT.","You don't have to carry this entirely alone."]
+        ]},
+      { title:"Find others who understand", category:"Support", color:"#abc0ab",
+        lines:[
+          ["DO.","Look for a grief support group or someone else who has been through a similar loss."],
+          ["TIP.","Shared experience often brings a kind of understanding others can't offer."],
+          ["CONNECT.","You don't have to explain everything to someone who already knows."]
+        ]},
+      { title:"It's okay to say no", category:"Support", color:"#c2d1c2",
+        lines:[
+          ["DO.","If you're not ready for an event or conversation, it's okay to decline."],
+          ["TIP.","\"I'm not up for that right now\" is a complete, valid answer."],
+          ["PROTECT.","Protecting your energy while grieving isn't selfish."]
+        ]},
+      { title:"Speak to yourself gently", category:"Self-compassion", color:"#b97f8f",
+        lines:[
+          ["DO.","Notice how you talk to yourself about your grief, and try to be as kind as you'd be to a friend."],
+          ["TIP.","\"You're allowed to still be sad about this\" is a fair thing to say to yourself."],
+          ["SOFTEN.","Grief is hard enough without also being hard on yourself."]
+        ]},
+      { title:"Rest without guilt", category:"Self-compassion", color:"#c495a2",
+        lines:[
+          ["DO.","If you need to rest, cancel plans, or do less today, let yourself, without needing to justify it."],
+          ["TIP.","Grief is exhausting in ways that aren't always visible."],
+          ["ALLOW.","You don't owe anyone an explanation for how you're coping."]
+        ]},
+      { title:"There's no right way to grieve", category:"Self-compassion", color:"#d0abb5",
+        lines:[
+          ["DO.","Remind yourself that however you're grieving — angry, numb, tearful, functioning — is valid."],
+          ["TIP.","Comparing your grief to someone else's rarely helps."],
+          ["ACCEPT.","Your grief is your own, and it doesn't need to look a certain way."]
+        ]},
+      { title:"Take care of your body too", category:"Self-compassion", color:"#dcc1c8",
+        lines:[
+          ["DO.","Notice if you've eaten, had water, or moved today, and do one small thing for your body."],
+          ["TIP.","Grief affects the body as much as the mind."],
+          ["TEND.","Basic care matters even, especially, on the hardest days."]
+        ]},
+      { title:"Small steps count", category:"Moving forward", color:"#8a7ea6",
+        lines:[
+          ["DO.","Choose one small, ordinary task to complete today, nothing more."],
+          ["TIP.","Moving forward doesn't mean forgetting or rushing."],
+          ["PROGRESS.","Small steps are still real steps."]
+        ]},
+      { title:"Notice a moment of okay", category:"Moving forward", color:"#9d93b5",
+        lines:[
+          ["DO.","Notice if there's a moment today where you feel, even briefly, okay."],
+          ["TIP.","This isn't a betrayal of your grief, both things can be true."],
+          ["ALLOW.","Moments of okay don't erase the loss."]
+        ]},
+      { title:"Carry them with you", category:"Moving forward", color:"#b1a8c3",
+        lines:[
+          ["DO.","Think of one way you could carry something of them forward, a value, a habit, a phrase they used."],
+          ["TIP.","This isn't about moving on, but moving forward with them."],
+          ["HONOUR.","Grief and growth can coexist."]
+        ]},
+      { title:"Be patient with the process", category:"Moving forward", color:"#c5bdd2",
+        lines:[
+          ["DO.","Remind yourself that healing isn't linear, and that's completely normal."],
+          ["TIP.","Some days will feel like progress, others won't, both are part of it."],
+          ["TRUST.","Give yourself the same time you'd give anyone else."]
+        ]},
+    ]
+  },
+
+  creativity: {
+    label: "for creativity",
+    desc: "20 sparks to break through creative block.",
+    tileColors: ["#d97f5f","#d9bf4f","#4f8a8f","#c45f5f","#8a7ea6"],
+    cards: [
+      { title:"Look somewhere unusual", category:"Inspiration", color:"#d97f5f",
+        lines:[
+          ["DO.","Spend ten minutes looking somewhere you don't normally look for ideas, a different genre, a different field entirely."],
+          ["TIP.","Inspiration often comes from unexpected combinations."],
+          ["COLLECT.","Keep a running list of things that catch your attention."]
+        ]},
+      { title:"Go for a walk without a purpose", category:"Inspiration", color:"#e0967a",
+        lines:[
+          ["DO.","Take a walk with no destination or goal, just to let your mind wander."],
+          ["TIP.","Leave your headphones off if you can."],
+          ["NOTICE.","Some of the best ideas arrive when you're not actively chasing them."]
+        ]},
+      { title:"Revisit an old idea", category:"Inspiration", color:"#e7ad95",
+        lines:[
+          ["DO.","Look back through old notes or sketches for something you abandoned, and give it a second look."],
+          ["TIP.","It might work better now than it did then."],
+          ["REVISIT.","Not every idea is ready the first time you have it."]
+        ]},
+      { title:"Consume something outside your field", category:"Inspiration", color:"#eec4b0",
+        lines:[
+          ["DO.","Read, watch, or listen to something completely outside your usual area."],
+          ["TIP.","Cross-pollination often sparks the freshest ideas."],
+          ["EXPLORE.","Your best next idea might come from somewhere unexpected."]
+        ]},
+      { title:"Make something bad on purpose", category:"Play", color:"#d9bf4f",
+        lines:[
+          ["DO.","Create something deliberately terrible, just to remove the pressure of it being good."],
+          ["TIP.","This is about loosening up, not the result."],
+          ["LOOSEN.","Play without stakes often leads somewhere surprising."]
+        ]},
+      { title:"Set a silly constraint", category:"Play", color:"#e0cb6e",
+        lines:[
+          ["DO.","Give yourself an arbitrary limit — one colour, five minutes, no words — and create within it."],
+          ["TIP.","Constraints often spark more creativity than a blank page."],
+          ["EXPERIMENT.","Limitations can be freeing, not restrictive."]
+        ]},
+      { title:"Combine two random things", category:"Play", color:"#e7d88d",
+        lines:[
+          ["DO.","Pick two unrelated objects or ideas and find a way to combine them."],
+          ["TIP.","The stranger the combination, the more interesting the result can be."],
+          ["PLAY.","This is a classic trick for breaking out of familiar patterns."]
+        ]},
+      { title:"Make it for no one", category:"Play", color:"#eee4ac",
+        lines:[
+          ["DO.","Create something with absolutely no intention of showing anyone."],
+          ["TIP.","Remove the audience, remove the pressure."],
+          ["FREE.","Work made just for you often unlocks something work made for others can't."]
+        ]},
+      { title:"Protect one hour", category:"Focus", color:"#4f8a8f",
+        lines:[
+          ["DO.","Block out one hour this week that's just for your creative work, and treat it as non-negotiable."],
+          ["TIP.","Turn off notifications for the full hour."],
+          ["COMMIT.","Creative work needs protected time, not just leftover time."]
+        ]},
+      { title:"Start before you're ready", category:"Focus", color:"#68a1a5",
+        lines:[
+          ["DO.","Begin working before you feel fully inspired or prepared."],
+          ["TIP.","Motivation often follows action, not the other way around."],
+          ["BEGIN.","Waiting for the perfect moment usually just means waiting."]
+        ]},
+      { title:"Remove one distraction", category:"Focus", color:"#82b8bb",
+        lines:[
+          ["DO.","Identify the thing that most often pulls you away from creative work, and remove it for one session."],
+          ["TIP.","It's often your phone, but not always."],
+          ["FOCUS.","One less distraction can mean much deeper work."]
+        ]},
+      { title:"Work in short bursts", category:"Focus", color:"#9ccfd1",
+        lines:[
+          ["DO.","Try twenty five minutes of focused creative work, followed by a five minute break."],
+          ["TIP.","Repeat for two or three rounds."],
+          ["SUSTAIN.","Short, focused bursts often outperform long unfocused stretches."]
+        ]},
+      { title:"Share something unfinished", category:"Courage", color:"#c45f5f",
+        lines:[
+          ["DO.","Show someone a work in progress, before it feels ready."],
+          ["TIP.","Choose someone whose feedback you trust."],
+          ["RISK.","Sharing early, imperfect work builds a different kind of resilience."]
+        ]},
+      { title:"Do the version you're afraid of", category:"Courage", color:"#cd7a7a",
+        lines:[
+          ["DO.","If there's a bolder, riskier version of your idea you've been avoiding, try it."],
+          ["TIP.","You can always go back to the safer version."],
+          ["DARE.","The version you're scared of is often the most interesting one."]
+        ]},
+      { title:"Finish something imperfect", category:"Courage", color:"#d69696",
+        lines:[
+          ["DO.","Choose one piece and finish it, even if it's not exactly as you imagined."],
+          ["TIP.","Done is often more valuable than perfect."],
+          ["COMPLETE.","A finished, imperfect thing teaches you more than an endless draft."]
+        ]},
+      { title:"Ask for honest feedback", category:"Courage", color:"#e0b3b3",
+        lines:[
+          ["DO.","Ask someone for feedback and specifically request honesty, not just encouragement."],
+          ["TIP.","Be ready to just listen, not defend."],
+          ["LISTEN.","Honest feedback, even when it stings, helps you grow faster."]
+        ]},
+      { title:"Look back at your progress", category:"Reflection", color:"#8a7ea6",
+        lines:[
+          ["DO.","Compare something you made recently to something from a year ago."],
+          ["TIP.","Notice specific ways you've grown, not just the overall result."],
+          ["NOTICE.","Progress is often invisible day to day, but clear over time."]
+        ]},
+      { title:"Ask what you learned", category:"Reflection", color:"#9d93b5",
+        lines:[
+          ["DO.","After finishing a piece of work, write down one thing you learned from making it."],
+          ["TIP.","This applies whether the work succeeded or not."],
+          ["REFLECT.","Every project teaches you something, if you pause to notice it."]
+        ]},
+      { title:"Notice your patterns", category:"Reflection", color:"#b1a8c3",
+        lines:[
+          ["DO.","Look at a few of your recent projects and notice what themes or habits keep showing up."],
+          ["TIP.","This isn't judgement, just observation."],
+          ["UNDERSTAND.","Your recurring patterns often point to what matters most to you."]
+        ]},
+      { title:"Celebrate the attempt", category:"Reflection", color:"#c5bdd2",
+        lines:[
+          ["DO.","Acknowledge one creative risk you took recently, regardless of how it turned out."],
+          ["TIP.","The attempt itself deserves recognition."],
+          ["HONOUR.","Courage to try is worth celebrating on its own."]
+        ]},
+    ]
+  },
+  fitness: {
+    label: "for fitness",
+    desc: "20 activities for motivation, recovery and a healthier mindset.",
+    tileColors: ["#d9703f","#5f8fbf","#8a6fbf","#4f8f5f","#d94f8a"],
+    cards: [
+      { title:"Remember your reason", category:"Motivation", color:"#d9703f",
+        lines:[
+          ["DO.","Write down, in one sentence, why you actually want to move your body, beyond how you look."],
+          ["TIP.","Keep it somewhere you'll see before a workout."],
+          ["RETURN.","A real reason pulls you through the days motivation alone won't."],
+        ]},
+      { title:"Lower the bar to start", category:"Motivation", color:"#de8156",
+        lines:[
+          ["DO.","On low-motivation days, commit to just five minutes of movement, nothing more."],
+          ["TIP.","You can always stop after five minutes, but you rarely do."],
+          ["BEGIN.","Starting is the hardest part, and the smallest version still counts."],
+        ]},
+      { title:"Picture how you'll feel after", category:"Motivation", color:"#e2926d",
+        lines:[
+          ["DO.","Before a workout, take thirty seconds to imagine how you'll feel once it's done."],
+          ["TIP.","Focus on the after-feeling, not the during."],
+          ["VISUALISE.","That future feeling can pull you through the reluctance now."],
+        ]},
+      { title:"Find your reason of the day", category:"Motivation", color:"#e7a688",
+        lines:[
+          ["DO.","Each morning, name one small reason to move today, energy, stress relief, just showing up."],
+          ["TIP.","It doesn't need to be the same reason every day."],
+          ["RETURN.","Motivation shifts daily, so let your reason shift with it."],
+        ]},
+      { title:"Rest is part of the plan", category:"Recovery", color:"#5f8fbf",
+        lines:[
+          ["DO.","Schedule a rest day this week and treat it as seriously as a workout day."],
+          ["TIP.","Rest is when your body actually adapts and gets stronger."],
+          ["HONOUR.","Skipping recovery slows progress more than skipping a session."],
+        ]},
+      { title:"Listen to what's sore", category:"Recovery", color:"#729cc7",
+        lines:[
+          ["DO.","Notice which parts of your body feel tired or sore, and adjust today's plan accordingly."],
+          ["TIP.","Working around soreness isn't weakness, it's smart training."],
+          ["ADAPT.","Pushing through real fatigue usually costs you more later."],
+        ]},
+      { title:"Sleep like it's training", category:"Recovery", color:"#85aace",
+        lines:[
+          ["DO.","Prioritise one extra hour of sleep tonight, treating it as part of your fitness routine."],
+          ["TIP.","Recovery happens mostly while you sleep, not while you're awake."],
+          ["RECHARGE.","No amount of training outworks poor sleep."],
+        ]},
+      { title:"Stretch it out slowly", category:"Recovery", color:"#9cbad7",
+        lines:[
+          ["DO.","Spend ten minutes on slow, gentle stretching, especially the areas you worked hardest."],
+          ["TIP.","Hold each stretch for at least twenty seconds."],
+          ["RELEASE.","Slow movement after hard effort helps your body reset."],
+        ]},
+      { title:"Progress isn't just the scale", category:"Mindset", color:"#8a6fbf",
+        lines:[
+          ["DO.","Write down one non-scale win from this week, energy, strength, mood, sleep."],
+          ["TIP.","The scale is only one narrow measure among many."],
+          ["NOTICE.","Real progress shows up in more places than you're currently tracking."],
+        ]},
+      { title:"Compare only to your past self", category:"Mindset", color:"#9880c7",
+        lines:[
+          ["DO.","Think of one way you're stronger or fitter than you were three months ago."],
+          ["TIP.","Comparing to others rarely helps, comparing to your own past does."],
+          ["RETURN.","Your only real competition is who you used to be."],
+        ]},
+      { title:"Reframe a hard session", category:"Mindset", color:"#a692ce",
+        lines:[
+          ["DO.","After a difficult workout, name one thing you're proud of, even if it wasn't your best."],
+          ["TIP.","Showing up on a hard day counts for more than showing up on an easy one."],
+          ["REFRAME.","Difficulty isn't failure, it's often where growth happens."],
+        ]},
+      { title:"Let today be enough", category:"Mindset", color:"#b6a6d7",
+        lines:[
+          ["DO.","Whatever you manage today, however small, decide to let it be enough."],
+          ["TIP.","Perfection isn't the goal, consistency is."],
+          ["ACCEPT.","An imperfect effort beats a skipped one every time."],
+        ]},
+      { title:"Same time, most days", category:"Consistency", color:"#4f8f5f",
+        lines:[
+          ["DO.","Pick a rough time of day for movement and try to stick close to it."],
+          ["TIP.","Consistency in timing builds the habit faster than consistency in intensity."],
+          ["ANCHOR.","A regular time becomes easier to protect than a floating one."],
+        ]},
+      { title:"Make it stupidly easy to start", category:"Consistency", color:"#649c72",
+        lines:[
+          ["DO.","Prepare your workout clothes or equipment the night before."],
+          ["TIP.","Removing friction is often more powerful than more willpower."],
+          ["SIMPLIFY.","The easier it is to begin, the more often you will."],
+        ]},
+      { title:"Track the streak, not the intensity", category:"Consistency", color:"#79aa85",
+        lines:[
+          ["DO.","Mark an X on a calendar for any day you moved at all, regardless of how much."],
+          ["TIP.","A short walk counts just as much as a long run for this."],
+          ["COUNT.","Visual streaks are motivating in a way single workouts aren't."],
+        ]},
+      { title:"Plan for the day you don't want to", category:"Consistency", color:"#92ba9c",
+        lines:[
+          ["DO.","Decide in advance what your minimum viable workout is for low-motivation days."],
+          ["TIP.","Even two minutes keeps the habit alive."],
+          ["PREPARE.","Deciding in advance removes the decision when willpower is low."],
+        ]},
+      { title:"Celebrate the show-up", category:"Celebration", color:"#d94f8a",
+        lines:[
+          ["DO.","After a workout, however it went, acknowledge that you showed up."],
+          ["TIP.","The showing up matters more than the performance."],
+          ["ACKNOWLEDGE.","Consistency is built by celebrating effort, not just results."],
+        ]},
+      { title:"Mark a milestone", category:"Celebration", color:"#de6498",
+        lines:[
+          ["DO.","Notice one fitness milestone you've hit recently, however small, and celebrate it properly."],
+          ["TIP.","A new personal best, a longer streak, an easier familiar route."],
+          ["CELEBRATE.","Milestones deserve more than a passing thought."],
+        ]},
+      { title:"Tell someone about your progress", category:"Celebration", color:"#e279a6",
+        lines:[
+          ["DO.","Share one piece of fitness progress with a friend or family member."],
+          ["TIP.","Their encouragement can carry you further than you'd expect."],
+          ["SHARE.","Progress feels more real when it's witnessed by someone else."],
+        ]},
+      { title:"Treat yourself, non-food edition", category:"Celebration", color:"#e792b6",
+        lines:[
+          ["DO.","Plan a small non-food reward for hitting a fitness goal, new gear, a massage, a guilt-free rest day."],
+          ["TIP.","Choose something that supports your goals rather than works against them."],
+          ["REWARD.","Consistent effort deserves consistent recognition."],
+        ]},
+    ]
+  },
+  caregivers: {
+    label: "for caregivers",
+    desc: "20 activities to protect your own wellbeing while caring for others.",
+    tileColors: ["#c4809a","#7f9e8a","#6f8fbf","#c4805f","#9e8fc4"],
+    cards: [
+      { title:"Ten minutes, just for you", category:"Self-care", color:"#c4809a",
+        lines:[
+          ["DO.","Find ten minutes today that belong only to you, not to caregiving tasks."],
+          ["TIP.","A coffee alone, a walk, a few pages of a book, all count."],
+          ["RECHARGE.","You can't sustain caring for someone else on empty."],
+        ]},
+      { title:"Eat something that isn't rushed", category:"Self-care", color:"#cb8fa6",
+        lines:[
+          ["DO.","Sit down, even briefly, and eat one meal today without multitasking."],
+          ["TIP.","Prep something simple in advance for the harder days."],
+          ["NOURISH.","Your body needs care too, not just theirs."],
+        ]},
+      { title:"Keep one thing just for you", category:"Self-care", color:"#d29eb2",
+        lines:[
+          ["DO.","Protect one small hobby or habit that has nothing to do with caregiving."],
+          ["TIP.","It doesn't need to take long, just needs to be yours."],
+          ["HOLD ONTO.","Losing every personal interest to caregiving makes burnout more likely."],
+        ]},
+      { title:"Notice your own needs", category:"Self-care", color:"#dab0c0",
+        lines:[
+          ["DO.","Ask yourself, honestly, what you need right now, not just what they need."],
+          ["TIP.","Caregivers often become so attuned to others they stop checking in with themselves."],
+          ["CHECK IN.","Your needs are just as real as theirs."],
+        ]},
+      { title:"Breathe before you respond", category:"Patience", color:"#7f9e8a",
+        lines:[
+          ["DO.","In a frustrating moment, take one slow breath before you say anything."],
+          ["TIP.","That pause is often enough to soften your response."],
+          ["PAUSE.","Patience isn't unlimited, it's protected in these small moments."],
+        ]},
+      { title:"Remember it's the illness, not them", category:"Patience", color:"#8eaa98",
+        lines:[
+          ["DO.","When behaviour is difficult, remind yourself it often comes from illness, fear, or pain, not intention."],
+          ["TIP.","This doesn't make it easier, but it can make it clearer."],
+          ["REFRAME.","Separating the person from the symptom can soften frustration."],
+        ]},
+      { title:"Lower the expectation for today", category:"Patience", color:"#9eb5a6",
+        lines:[
+          ["DO.","Start today expecting less to go smoothly than usual."],
+          ["TIP.","This isn't pessimism, it's realistic caregiving."],
+          ["ADJUST.","Fewer expectations means less frustration when things don't go to plan."],
+        ]},
+      { title:"Give yourself the same patience", category:"Patience", color:"#b0c3b6",
+        lines:[
+          ["DO.","Notice if you're being harder on yourself than you'd be on anyone else in this position."],
+          ["TIP.","Caregiving is genuinely difficult, and struggling with it doesn't mean you're failing."],
+          ["FORGIVE.","You deserve the patience you extend to others."],
+        ]},
+      { title:"Say what you actually need", category:"Support", color:"#6f8fbf",
+        lines:[
+          ["DO.","Tell someone specifically what kind of help would make a difference, not just \"I'm struggling.\""],
+          ["TIP.","\"Could you sit with them for an hour\" is easier to act on than a general ask."],
+          ["ASK.","Specific requests are easier for people to meet."],
+        ]},
+      { title:"Find your people", category:"Support", color:"#809cc7",
+        lines:[
+          ["DO.","Reach out to one other caregiver, in person or online, who understands what this is like."],
+          ["TIP.","You don't need advice, just someone who gets it."],
+          ["CONNECT.","Shared experience offers a kind of understanding others can't."],
+        ]},
+      { title:"Accept the offer", category:"Support", color:"#92aace",
+        lines:[
+          ["DO.","Next time someone offers to help, say yes, even if it feels easier to say no."],
+          ["TIP.","Let them bring a meal, sit with your loved one, or just listen."],
+          ["ACCEPT.","You are not meant to carry this entirely alone."],
+        ]},
+      { title:"Ask about respite options", category:"Support", color:"#a6bad7",
+        lines:[
+          ["DO.","Look into what respite care or support services are available where you are."],
+          ["TIP.","Even a few hours can make a meaningful difference."],
+          ["EXPLORE.","Using support isn't giving up, it's sustaining your ability to care."],
+        ]},
+      { title:"It's okay to say no", category:"Boundaries", color:"#c4805f",
+        lines:[
+          ["DO.","If a request is more than you can manage right now, it's okay to decline."],
+          ["TIP.","\"I can't take that on right now\" is a complete, valid answer."],
+          ["PROTECT.","Protecting your capacity isn't selfish, it's necessary."],
+        ]},
+      { title:"Set a limit on hard conversations", category:"Boundaries", color:"#cb8f72",
+        lines:[
+          ["DO.","If a conversation about care becomes overwhelming, it's okay to pause it and return later."],
+          ["TIP.","\"Can we come back to this tomorrow\" is a reasonable thing to say."],
+          ["PAUSE.","You don't have to resolve everything in one sitting."],
+        ]},
+      { title:"Protect your own appointments", category:"Boundaries", color:"#d29e85",
+        lines:[
+          ["DO.","Keep at least one of your own appointments this week, medical, social, or otherwise."],
+          ["TIP.","Caregiving can quietly crowd out your own life if you let it."],
+          ["GUARD.","Your life still matters alongside theirs."],
+        ]},
+      { title:"Let go of guilt around limits", category:"Boundaries", color:"#dab09c",
+        lines:[
+          ["DO.","Notice if guilt is driving you to say yes to more than you can handle."],
+          ["TIP.","A boundary that protects your capacity ultimately protects your caregiving too."],
+          ["RELEASE.","Sustainable care requires limits, not limitless giving."],
+        ]},
+      { title:"Rest without guilt", category:"Rest", color:"#9e8fc4",
+        lines:[
+          ["DO.","When you get a moment to rest, actually rest instead of using it to catch up on tasks."],
+          ["TIP.","Rest is not a reward you have to earn, it's a requirement."],
+          ["ALLOW.","You cannot pour from an empty cup indefinitely."],
+        ]},
+      { title:"Sleep when you can", category:"Rest", color:"#aa9ccb",
+        lines:[
+          ["DO.","If there's a window to nap or rest during the day, take it when you can."],
+          ["TIP.","Caregiving often disrupts normal sleep, so rest where you find it."],
+          ["RECOVER.","Sleep debt affects your patience and health both."],
+        ]},
+      { title:"Ask for a covered break", category:"Rest", color:"#b5aad2",
+        lines:[
+          ["DO.","Arrange for someone to cover care for a set period so you can properly switch off."],
+          ["TIP.","Even two hours away can be genuinely restorative."],
+          ["STEP AWAY.","Time away doesn't mean you care less, it means you're sustaining your care."],
+        ]},
+      { title:"Notice when you're running on empty", category:"Rest", color:"#c3bada",
+        lines:[
+          ["DO.","Check in with your own energy levels honestly today."],
+          ["TIP.","Exhaustion often builds quietly until it's a crisis."],
+          ["NOTICE.","Catching depletion early is easier to recover from than catching it late."],
+        ]},
+    ]
+  },
+  careerchange: {
+    label: "for career change",
+    desc: "20 activities for clarity, confidence and momentum through a career pivot.",
+    tileColors: ["#5f9ed4","#d9a04f","#7f8a9e","#d9705f","#7a5ea6"],
+    cards: [
+      { title:"Write what you don't want", category:"Clarity", color:"#5f9ed4",
+        lines:[
+          ["DO.","List the things about your current or past roles you definitely don't want to repeat."],
+          ["TIP.","Sometimes it's easier to define what you want by first ruling things out."],
+          ["CLARIFY.","Knowing what to avoid narrows the search considerably."],
+        ]},
+      { title:"Name your non-negotiables", category:"Clarity", color:"#72aad9",
+        lines:[
+          ["DO.","Write down the three things a new role absolutely must have for you."],
+          ["TIP.","Salary, flexibility, purpose, whatever matters most to you right now."],
+          ["DEFINE.","Clear non-negotiables make it easier to say no to the wrong fit."],
+        ]},
+      { title:"Talk to someone doing it already", category:"Clarity", color:"#85b5de",
+        lines:[
+          ["DO.","Reach out to one person working in a field you're curious about, and ask about their actual day to day."],
+          ["TIP.","People are often more willing to talk than you'd expect."],
+          ["LEARN.","Real insight beats guessing from the outside."],
+        ]},
+      { title:"Revisit what you were good at before", category:"Clarity", color:"#9cc3e4",
+        lines:[
+          ["DO.","Think back to a role or project where you felt genuinely capable, and note why."],
+          ["TIP.","Your best-fit work often has recurring threads across different jobs."],
+          ["NOTICE.","Past strengths are a strong clue for future direction."],
+        ]},
+      { title:"List your transferable skills", category:"Confidence", color:"#d9a04f",
+        lines:[
+          ["DO.","Write down five skills from your current field that would apply elsewhere."],
+          ["TIP.","Communication, problem solving and leadership rarely stay in one industry."],
+          ["RECOGNISE.","You're bringing more with you than it might feel like."],
+        ]},
+      { title:"Remember a past leap", category:"Confidence", color:"#deab64",
+        lines:[
+          ["DO.","Think of another time you changed direction and it eventually worked out."],
+          ["TIP.","Specific memories are more convincing than general reassurance."],
+          ["TRUST.","You've navigated uncertainty successfully before."],
+        ]},
+      { title:"Practise saying it out loud", category:"Confidence", color:"#e2b779",
+        lines:[
+          ["DO.","Practise describing your career change, and why, to someone you trust."],
+          ["TIP.","The story gets easier to tell the more you say it."],
+          ["REHEARSE.","A confident story starts with practising it privately first."],
+        ]},
+      { title:"Separate your worth from your job title", category:"Confidence", color:"#e7c492",
+        lines:[
+          ["DO.","Write one sentence about who you are that has nothing to do with your job."],
+          ["TIP.","A career change can feel like it threatens identity, it doesn't have to."],
+          ["REMEMBER.","You are not only your current title."],
+        ]},
+      { title:"Expect some rejection", category:"Resilience", color:"#7f8a9e",
+        lines:[
+          ["DO.","Remind yourself that rejection is a normal, expected part of changing direction, not a verdict on you."],
+          ["TIP.","Even strong candidates hear no more often than yes."],
+          ["NORMALISE.","Rejection is data, not a judgement of your worth."],
+        ]},
+      { title:"Learn from the no", category:"Resilience", color:"#8e98aa",
+        lines:[
+          ["DO.","After a rejection, ask, if appropriate, for one piece of feedback you could use."],
+          ["TIP.","Not everyone will respond, but it's worth asking."],
+          ["LEARN.","Even a small piece of feedback can sharpen your next attempt."],
+        ]},
+      { title:"Take a real break from the search", category:"Resilience", color:"#9ea6b5",
+        lines:[
+          ["DO.","Give yourself one full day this week away from job searching entirely."],
+          ["TIP.","Constant searching without rest often burns people out faster than it helps."],
+          ["RECHARGE.","A rested search is a more effective one."],
+        ]},
+      { title:"Remember why you started", category:"Resilience", color:"#b0b6c3",
+        lines:[
+          ["DO.","Revisit the reason you decided to make this change in the first place."],
+          ["TIP.","Write it down somewhere you'll see it on discouraging days."],
+          ["RETURN.","The reason that started this is still true, even on hard days."],
+        ]},
+      { title:"Reach out to one person a week", category:"Networking", color:"#d9705f",
+        lines:[
+          ["DO.","Message one person in your target field or company each week, just to connect."],
+          ["TIP.","A short, genuine message works better than a long one."],
+          ["CONNECT.","Consistent small outreach beats occasional big pushes."],
+        ]},
+      { title:"Reconnect before you need something", category:"Networking", color:"#de8172",
+        lines:[
+          ["DO.","Message an old colleague or contact just to catch up, with no ask attached."],
+          ["TIP.","Reconnecting without a request first feels more genuine."],
+          ["NURTURE.","Relationships built before you need them are stronger when you do."],
+        ]},
+      { title:"Ask for advice, not a job", category:"Networking", color:"#e29285",
+        lines:[
+          ["DO.","When reaching out to someone in your target field, ask for their perspective, not a favour."],
+          ["TIP.","People are far more willing to share advice than to make introductions cold."],
+          ["ASK.","Advice conversations often lead somewhere useful anyway."],
+        ]},
+      { title:"Show up where they are", category:"Networking", color:"#e7a69c",
+        lines:[
+          ["DO.","Find one event, group, or online community connected to your target field, and show up."],
+          ["TIP.","Consistency in one space beats scattering across many."],
+          ["APPEAR.","Being visible in the right places opens doors that applications alone can't."],
+        ]},
+      { title:"Define what \"meaningful\" means to you", category:"Purpose", color:"#7a5ea6",
+        lines:[
+          ["DO.","Write down what meaningful work actually looks like for you specifically."],
+          ["TIP.","It's different for everyone, don't borrow someone else's definition."],
+          ["DEFINE.","A clear personal definition guides better decisions than a vague sense of \"purpose.\""],
+        ]},
+      { title:"Notice what energises you", category:"Purpose", color:"#8a71b1",
+        lines:[
+          ["DO.","Look back at your week and note which tasks gave you energy rather than draining it."],
+          ["TIP.","This is often a better clue to purpose than any values exercise."],
+          ["NOTICE.","Energy is a strong, honest signal worth trusting."],
+        ]},
+      { title:"Imagine telling someone about your work", category:"Purpose", color:"#9a85bb",
+        lines:[
+          ["DO.","Picture describing your ideal role to someone at a dinner party."],
+          ["TIP.","Notice how it feels to say it, proud, energised, or flat."],
+          ["IMAGINE.","How it feels to describe it says a lot about whether it's right."],
+        ]},
+      { title:"Let purpose evolve", category:"Purpose", color:"#ad9bc8",
+        lines:[
+          ["DO.","Remind yourself your sense of purpose doesn't need to be fixed forever."],
+          ["TIP.","This decision doesn't have to be the last one you ever make."],
+          ["ALLOW.","Purpose can change as you do, and that's completely normal."],
+        ]},
+    ]
+  },
+  teens: {
+    label: "for teens",
+    desc: "20 activities for identity, confidence and navigating growing up.",
+    tileColors: ["#8a6fbf","#d9705f","#d9a04f","#4f9e9e","#5f9e6f"],
+    cards: [
+      { title:"List what makes you, you", category:"Identity", color:"#8a6fbf",
+        lines:[
+          ["DO.","Write down five things about yourself that have nothing to do with what other people think."],
+          ["TIP.","Interests, values, quirks, anything genuinely yours."],
+          ["NOTICE.","Who you are doesn't depend on anyone else's approval."],
+        ]},
+      { title:"Try something new, just to try it", category:"Identity", color:"#9880c7",
+        lines:[
+          ["DO.","Do one activity this week purely out of curiosity, with no pressure to be good at it."],
+          ["TIP.","Trying things is how you find out what actually fits you."],
+          ["EXPLORE.","You don't have to know who you are yet, figuring it out is the point."],
+        ]},
+      { title:"Notice who you are around different people", category:"Identity", color:"#a692ce",
+        lines:[
+          ["DO.","Think about how you act differently around different friend groups, and which version feels most like you."],
+          ["TIP.","There's no judgement here, just noticing."],
+          ["REFLECT.","The version of you that feels most natural is worth paying attention to."],
+        ]},
+      { title:"Write a letter to your future self", category:"Identity", color:"#b6a6d7",
+        lines:[
+          ["DO.","Write a short letter to yourself in five years, about who you hope to be."],
+          ["TIP.","Keep it somewhere you can find it later."],
+          ["IMAGINE.","This isn't a plan, just a way of noticing what matters to you now."],
+        ]},
+      { title:"Be the one who reaches out", category:"Friendships", color:"#d9705f",
+        lines:[
+          ["DO.","Message a friend first today, instead of waiting for them to reach out."],
+          ["TIP.","It doesn't need to be a big message, just a genuine one."],
+          ["CONNECT.","Someone has to go first, let it be you sometimes."],
+        ]},
+      { title:"Notice who makes you feel good", category:"Friendships", color:"#de8172",
+        lines:[
+          ["DO.","Think about which friendships leave you feeling better, and which leave you feeling worse."],
+          ["TIP.","This isn't about cutting people off, just noticing patterns."],
+          ["OBSERVE.","Paying attention to how friendships feel matters more than how they look."],
+        ]},
+      { title:"Say sorry first", category:"Friendships", color:"#e29285",
+        lines:[
+          ["DO.","If there's tension with a friend, be the one to reach out and try to fix it."],
+          ["TIP.","\"I want to sort this out\" is a strong way to start."],
+          ["REPAIR.","Being the one to try first takes courage, and it matters."],
+        ]},
+      { title:"It's okay to outgrow a friendship", category:"Friendships", color:"#e7a69c",
+        lines:[
+          ["DO.","Notice if a friendship isn't a good fit anymore, without needing to force it to stay the same."],
+          ["TIP.","Friendships can change naturally as you both grow."],
+          ["ACCEPT.","Not every friendship is meant to last forever, and that's okay."],
+        ]},
+      { title:"Talk to yourself like a friend", category:"Confidence", color:"#d9a04f",
+        lines:[
+          ["DO.","Notice your inner voice when you make a mistake, and try responding to yourself more kindly."],
+          ["TIP.","Would you say that to a friend? If not, don't say it to yourself."],
+          ["REFRAME.","How you talk to yourself shapes how confident you feel."],
+        ]},
+      { title:"Do one brave thing today", category:"Confidence", color:"#deab64",
+        lines:[
+          ["DO.","Pick one small thing that scares you a little, and do it anyway."],
+          ["TIP.","Raise your hand, start a conversation, try out for something."],
+          ["DARE.","Confidence is built by doing brave things, not by waiting to feel ready."],
+        ]},
+      { title:"Remember a past win", category:"Confidence", color:"#e2b779",
+        lines:[
+          ["DO.","Think of something you were nervous about that turned out okay."],
+          ["TIP.","Specific memories work better than vague reassurance."],
+          ["TRUST.","You've handled nerves successfully before, and you can again."],
+        ]},
+      { title:"Stop comparing your behind-the-scenes to their highlight reel", category:"Confidence", color:"#e7c492",
+        lines:[
+          ["DO.","Notice if you're comparing your hardest moments to someone else's best moments, especially online."],
+          ["TIP.","Everyone struggles, most people just don't post it."],
+          ["REMEMBER.","What you see isn't the whole picture."],
+        ]},
+      { title:"Name what you're actually feeling", category:"Emotions", color:"#4f9e9e",
+        lines:[
+          ["DO.","Try to name the specific emotion under a reaction, beyond just \"fine\" or \"annoyed.\""],
+          ["TIP.","Frustrated, embarrassed, disappointed, and anxious all feel different."],
+          ["NOTICE.","Naming a feeling accurately makes it easier to manage."],
+        ]},
+      { title:"Let yourself feel it before fixing it", category:"Emotions", color:"#64aaaa",
+        lines:[
+          ["DO.","When something upsets you, give yourself a few minutes to just feel it before trying to solve it."],
+          ["TIP.","Feelings don't need to be fixed immediately, sometimes they just need space."],
+          ["ALLOW.","Rushing past a feeling doesn't make it disappear."],
+        ]},
+      { title:"Talk to someone you trust", category:"Emotions", color:"#79b5b5",
+        lines:[
+          ["DO.","Tell one person you trust what's actually going on for you."],
+          ["TIP.","It doesn't have to be a parent, it could be a friend, teacher, or relative."],
+          ["SHARE.","You don't have to carry hard feelings entirely alone."],
+        ]},
+      { title:"Notice your triggers", category:"Emotions", color:"#92c3c3",
+        lines:[
+          ["DO.","Think about what kinds of situations tend to spike a strong reaction in you."],
+          ["TIP.","This isn't about blame, just about understanding yourself better."],
+          ["UNDERSTAND.","Knowing your triggers helps you prepare for them."],
+        ]},
+      { title:"Make one decision fully yourself", category:"Independence", color:"#5f9e6f",
+        lines:[
+          ["DO.","Choose something small this week and make the decision entirely on your own."],
+          ["TIP.","It doesn't need to be a big deal, practice matters more than the size."],
+          ["DECIDE.","Small decisions build the confidence for bigger ones."],
+        ]},
+      { title:"Try doing it without asking first", category:"Independence", color:"#72aa80",
+        lines:[
+          ["DO.","Pick a task you'd normally ask for help with, and attempt it solo first."],
+          ["TIP.","You can still ask for help after, if you need to."],
+          ["ATTEMPT.","Trying first, before asking, builds real capability over time."],
+        ]},
+      { title:"Manage your own time for a day", category:"Independence", color:"#85b592",
+        lines:[
+          ["DO.","Plan out your own day, including homework and downtime, without anyone else organising it for you."],
+          ["TIP.","It's okay if it's not perfect the first time."],
+          ["PLAN.","Managing your own time is a skill that takes practice, not talent."],
+        ]},
+      { title:"Speak up for yourself", category:"Independence", color:"#9cc3a6",
+        lines:[
+          ["DO.","Next time something isn't working for you, say so directly instead of just going along with it."],
+          ["TIP.","\"Actually, I'd prefer...\" is a complete sentence."],
+          ["VOICE.","Practising this now makes it easier for the rest of your life."],
+        ]},
+    ]
+  },
+  money: {
+    label: "for money",
+    desc: "20 activities for a calmer, clearer relationship with your finances.",
+    tileColors: ["#5f7f9e","#4f8f5f","#d9a04f","#d9705f","#d4b855"],
+    cards: [
+      { title:"Track one week honestly", category:"Awareness", color:"#5f7f9e",
+        lines:[
+          ["DO.","Write down everything you spend for one week, without judging it as you go."],
+          ["TIP.","Small purchases add up more than people expect."],
+          ["OBSERVE.","You can't change what you haven't actually looked at."],
+        ]},
+      { title:"Notice your money feelings", category:"Awareness", color:"#728eaa",
+        lines:[
+          ["DO.","Pay attention to how you feel when you check your bank balance, calm, anxious, avoidant."],
+          ["TIP.","There's no right feeling, just useful information."],
+          ["NOTICE.","Your relationship with money is emotional as well as practical."],
+        ]},
+      { title:"Find the leak", category:"Awareness", color:"#859eb5",
+        lines:[
+          ["DO.","Look for one recurring expense you'd forgotten about or no longer use."],
+          ["TIP.","Subscriptions are common culprits."],
+          ["LOCATE.","Small leaks, once found, are often easy to fix."],
+        ]},
+      { title:"Know your numbers", category:"Awareness", color:"#9cb0c3",
+        lines:[
+          ["DO.","Write down your monthly income and your essential expenses, in one place."],
+          ["TIP.","You don't need every detail, just the big picture."],
+          ["CLARIFY.","Basic clarity removes a surprising amount of money anxiety."],
+        ]},
+      { title:"Automate one good habit", category:"Habits", color:"#4f8f5f",
+        lines:[
+          ["DO.","Set up an automatic transfer, even a small one, into savings this week."],
+          ["TIP.","Automatic habits don't rely on willpower to happen."],
+          ["BUILD.","What happens automatically is far more consistent than what you have to remember."],
+        ]},
+      { title:"Wait twenty four hours", category:"Habits", color:"#649c72",
+        lines:[
+          ["DO.","Before a non-essential purchase over a certain amount, wait a day before buying."],
+          ["TIP.","Set the amount at whatever feels meaningful to you."],
+          ["PAUSE.","Most impulse purchases feel less urgent the next day."],
+        ]},
+      { title:"Check in weekly, not daily", category:"Habits", color:"#79aa85",
+        lines:[
+          ["DO.","Pick one regular time each week to check your finances, rather than checking constantly or never."],
+          ["TIP.","A consistent check-in reduces both anxiety and avoidance."],
+          ["REVIEW.","Regular small check-ins beat rare big panics."],
+        ]},
+      { title:"Name your accounts by purpose", category:"Habits", color:"#92ba9c",
+        lines:[
+          ["DO.","If you can, label your savings by what they're for, emergency, fun, future."],
+          ["TIP.","Purposeful naming makes saving feel more real and motivating."],
+          ["ORGANISE.","Money with a job feels different from money just sitting there."],
+        ]},
+      { title:"Separate worth from wealth", category:"Mindset", color:"#d9a04f",
+        lines:[
+          ["DO.","Write one sentence about your value that has nothing to do with money."],
+          ["TIP.","Financial situations shift, this shouldn't."],
+          ["REMEMBER.","You are not your bank balance."],
+        ]},
+      { title:"Notice comparison", category:"Mindset", color:"#deab64",
+        lines:[
+          ["DO.","Notice if you're comparing your finances to someone else's visible lifestyle."],
+          ["TIP.","You're comparing your full picture to their highlight reel."],
+          ["RELEASE.","Other people's spending tells you very little about their actual finances."],
+        ]},
+      { title:"Reframe a past mistake", category:"Mindset", color:"#e2b779",
+        lines:[
+          ["DO.","Think of a financial decision you regret, and name one thing it taught you."],
+          ["TIP.","Nearly everyone has a money mistake somewhere in their past."],
+          ["LEARN.","A costly lesson is still a lesson, not just a loss."],
+        ]},
+      { title:"Focus on progress, not perfection", category:"Mindset", color:"#e7c492",
+        lines:[
+          ["DO.","Notice one way your finances are better than they were a year ago."],
+          ["TIP.","It might be smaller debt, a bit more saved, or just more awareness."],
+          ["NOTICE.","Financial progress is rarely dramatic, but it adds up."],
+        ]},
+      { title:"Name one specific goal", category:"Goals", color:"#d9705f",
+        lines:[
+          ["DO.","Write down one financial goal with a number and rough timeframe attached."],
+          ["TIP.","\"Save more\" is vague, \"save 500 by June\" is a goal."],
+          ["SPECIFY.","Specific goals are far easier to actually work towards."],
+        ]},
+      { title:"Break it into monthly steps", category:"Goals", color:"#de8172",
+        lines:[
+          ["DO.","Take your goal and divide it into what you'd need to save or do each month."],
+          ["TIP.","Smaller numbers feel far more achievable than the total."],
+          ["SIMPLIFY.","A goal broken into steps stops feeling overwhelming."],
+        ]},
+      { title:"Visualise what it's for", category:"Goals", color:"#e29285",
+        lines:[
+          ["DO.","Picture specifically what achieving this goal will let you do or feel."],
+          ["TIP.","Security, freedom, a specific trip, whatever it is for you."],
+          ["IMAGINE.","A vivid reason is more motivating than an abstract number."],
+        ]},
+      { title:"Celebrate a milestone", category:"Goals", color:"#e7a69c",
+        lines:[
+          ["DO.","Notice when you hit a portion of your goal, a quarter, a half, and mark it."],
+          ["TIP.","Don't wait for the whole goal to acknowledge progress."],
+          ["CELEBRATE.","Recognising milestones keeps motivation going over a long goal."],
+        ]},
+      { title:"Notice what money has already given you", category:"Gratitude", color:"#d4b855",
+        lines:[
+          ["DO.","Write down three things your current finances, however tight, have made possible."],
+          ["TIP.","Shelter, food, a small treat, all count."],
+          ["APPRECIATE.","Gratitude for what you have doesn't cancel out working toward more."],
+        ]},
+      { title:"Thank your past self", category:"Gratitude", color:"#d9c169",
+        lines:[
+          ["DO.","Notice one financial decision your past self made that's helping you now."],
+          ["TIP.","A saved amount, a paid-off debt, a good habit started."],
+          ["ACKNOWLEDGE.","Your current stability was often built by past effort."],
+        ]},
+      { title:"Notice non-financial wealth", category:"Gratitude", color:"#dec97e",
+        lines:[
+          ["DO.","List something valuable in your life that has nothing to do with money."],
+          ["TIP.","Relationships, health, skills, time, all count as real wealth."],
+          ["BROADEN.","Financial wellbeing is only part of the wider picture."],
+        ]},
+      { title:"Give something, even small", category:"Gratitude", color:"#e4d396",
+        lines:[
+          ["DO.","If you're able, give a small amount to something that matters to you this month."],
+          ["TIP.","It doesn't need to be large to be meaningful."],
+          ["GIVE.","Generosity, even in small amounts, changes your relationship with money."],
+        ]},
+    ]
+  },
+  longdistance: {
+    label: "for long distance",
+    desc: "20 activities to nurture a relationship across the miles.",
+    tileColors: ["#c4507a","#5f7fa6","#4f8f8a","#d9a04f","#7f9e7f"],
+    cards: [
+      { title:"Share a small daily moment", category:"Connection", color:"#c4507a",
+        lines:[
+          ["DO.","Send one small detail from your day, a photo, a thought, a song."],
+          ["TIP.","It doesn't need to be significant, just real."],
+          ["SHARE.","Small consistent updates build closeness more than occasional big ones."],
+        ]},
+      { title:"Watch or do something at the same time", category:"Connection", color:"#cb658a",
+        lines:[
+          ["DO.","Plan to watch a show, cook a meal, or listen to an album at the same time, even apart."],
+          ["TIP.","Video call while you do it if you can."],
+          ["SYNC.","Shared experiences, even at a distance, build real connection."],
+        ]},
+      { title:"Have a real conversation, not just updates", category:"Connection", color:"#d27a9a",
+        lines:[
+          ["DO.","Ask a question that goes beyond logistics, a dream, a memory, a fear."],
+          ["TIP.","Save this for a call, not just messages."],
+          ["DEEPEN.","Distance makes it easy to only exchange updates, resist that."],
+        ]},
+      { title:"Send something physical", category:"Connection", color:"#da92ad",
+        lines:[
+          ["DO.","Mail a letter, a small gift, or something handmade."],
+          ["TIP.","Physical things carry a different weight than digital messages."],
+          ["SURPRISE.","Something they can hold means more than another message."],
+        ]},
+      { title:"Say what you're feeling, don't guess theirs", category:"Trust", color:"#5f7fa6",
+        lines:[
+          ["DO.","Share your own feelings directly instead of assuming what they're thinking."],
+          ["TIP.","\"I've been feeling a bit disconnected\" is clearer than silent worry."],
+          ["EXPRESS.","Guessing at their feelings from a distance rarely goes well."],
+        ]},
+      { title:"Give the benefit of the doubt", category:"Trust", color:"#728eb1",
+        lines:[
+          ["DO.","Next time a message feels off, consider a kinder explanation before assuming the worst."],
+          ["TIP.","Tone is genuinely hard to read over text."],
+          ["PAUSE.","Distance amplifies small doubts, so slow down before reacting."],
+        ]},
+      { title:"Keep your word on small things", category:"Trust", color:"#859ebb",
+        lines:[
+          ["DO.","If you say you'll call at a certain time, do your best to actually do it."],
+          ["TIP.","Small reliability builds trust more than grand gestures."],
+          ["FOLLOW THROUGH.","Consistency in small things matters more at a distance."],
+        ]},
+      { title:"Talk about trust directly", category:"Trust", color:"#9cb0c8",
+        lines:[
+          ["DO.","Have an honest conversation about what helps you both feel secure in the relationship."],
+          ["TIP.","Don't assume you both define trust the same way."],
+          ["DISCUSS.","Clear conversations about trust prevent quiet resentment."],
+        ]},
+      { title:"Set a regular check-in time", category:"Communication", color:"#4f8f8a",
+        lines:[
+          ["DO.","Agree on a rough regular time to talk, even if it shifts sometimes."],
+          ["TIP.","Predictability reduces the anxiety of wondering when you'll next connect."],
+          ["SCHEDULE.","A regular rhythm makes distance feel more manageable."],
+        ]},
+      { title:"Say it, don't assume it's understood", category:"Communication", color:"#649c98",
+        lines:[
+          ["DO.","If something's bothering you, say it directly rather than hoping they'll pick up on it."],
+          ["TIP.","Tone and context are easily lost without being in the same room."],
+          ["CLARIFY.","Directness matters more over distance, not less."],
+        ]},
+      { title:"Match effort, not silence", category:"Communication", color:"#79aaa6",
+        lines:[
+          ["DO.","If you notice communication has gone quiet, be the one to reach out first."],
+          ["TIP.","Waiting for the other person to go first can create unnecessary distance."],
+          ["INITIATE.","Someone has to start, let it be you sometimes."],
+        ]},
+      { title:"Talk about the hard stuff too", category:"Communication", color:"#92bab6",
+        lines:[
+          ["DO.","Don't save every difficult conversation for when you're together in person."],
+          ["TIP.","Distance can tempt you to avoid conflict, but it still needs addressing."],
+          ["ADDRESS.","Waiting too long to talk about issues lets them grow."],
+        ]},
+      { title:"Plan the next visit", category:"Anticipation", color:"#d9a04f",
+        lines:[
+          ["DO.","If you can, put a rough date for your next time together on the calendar."],
+          ["TIP.","Even a tentative date gives you both something to look forward to."],
+          ["PLAN.","Anticipation is easier to hold onto with something concrete."],
+        ]},
+      { title:"Countdown together", category:"Anticipation", color:"#deab64",
+        lines:[
+          ["DO.","If a visit is coming up, mark the countdown together, playfully."],
+          ["TIP.","A shared countdown becomes its own kind of connection."],
+          ["BUILD.","Looking forward to something together, together, doubles the anticipation."],
+        ]},
+      { title:"Plan something for when you're together", category:"Anticipation", color:"#e2b779",
+        lines:[
+          ["DO.","Talk about one specific thing you want to do next time you're in the same place."],
+          ["TIP.","It gives you both something concrete to look forward to."],
+          ["IMAGINE.","A specific plan feels more real than a vague \"can't wait to see you.\""],
+        ]},
+      { title:"Notice the good in the waiting", category:"Anticipation", color:"#e7c492",
+        lines:[
+          ["DO.","Notice one thing that's actually valuable about this current stretch of distance, independence, growth, appreciation."],
+          ["TIP.","This isn't about pretending distance is easy, just finding what it offers."],
+          ["REFRAME.","Even hard chapters can hold something worth noticing."],
+        ]},
+      { title:"Keep building your own life", category:"Independence", color:"#7f9e7f",
+        lines:[
+          ["DO.","Make sure you're investing in friendships, hobbies and routines that are just yours."],
+          ["TIP.","A full life on your end makes the relationship stronger, not weaker."],
+          ["MAINTAIN.","Two whole lives connecting is healthier than one life on pause."],
+        ]},
+      { title:"Don't put life on hold", category:"Independence", color:"#8eaa8e",
+        lines:[
+          ["DO.","Notice if you're waiting for the relationship to be \"normal\" before living fully now."],
+          ["TIP.","This chapter of distance is still part of your actual life."],
+          ["LIVE.","Waiting for later can quietly cost you the present."],
+        ]},
+      { title:"Give each other space to miss one another", category:"Independence", color:"#9eb59e",
+        lines:[
+          ["DO.","Let there be some space in your week that isn't about the relationship."],
+          ["TIP.","Constant contact isn't the only sign of closeness."],
+          ["ALLOW.","A little distance within the distance can be healthy too."],
+        ]},
+      { title:"Trust your own judgement too", category:"Independence", color:"#b0c3b0",
+        lines:[
+          ["DO.","Notice a decision you're capable of making confidently on your own, without needing to check in first."],
+          ["TIP.","Independence and connection can coexist."],
+          ["TRUST.","You don't need to outsource every decision to feel connected."],
+        ]},
+    ]
+  },
+  pregnancy: {
+    label: "for pregnancy",
+    desc: "20 activities for calm, connection and preparation.",
+    tileColors: ["#c4809a","#7f9ec4","#d4a855","#7fa885","#9e8fc4"],
+    cards: [
+      { title:"Notice without judging", category:"Body", color:"#c4809a",
+        lines:[
+          ["DO.","Take a moment to notice how your body feels today, without labelling it good or bad."],
+          ["TIP.","Pregnancy brings constant change, noticing helps you adjust."],
+          ["OBSERVE.","Awareness, without judgement, makes the changes easier to sit with."],
+        ]},
+      { title:"Move gently", category:"Body", color:"#cb8fa6",
+        lines:[
+          ["DO.","Do some gentle, approved movement today, a short walk, stretching, or whatever feels right."],
+          ["TIP.","Check with your care provider about what's suitable for you."],
+          ["MOVE.","Gentle movement can ease discomfort and lift your mood."],
+        ]},
+      { title:"Rest when your body asks", category:"Body", color:"#d29eb2",
+        lines:[
+          ["DO.","If you feel tired, let yourself rest without guilt, even if it's not what you planned."],
+          ["TIP.","Your body is doing enormous work right now."],
+          ["ALLOW.","Fatigue in pregnancy is a signal worth listening to, not overriding."],
+        ]},
+      { title:"Talk kindly to your changing body", category:"Body", color:"#dab0c0",
+        lines:[
+          ["DO.","Notice if you're being critical of your changing shape, and try a kinder thought instead."],
+          ["TIP.","\"My body is doing something remarkable\" is a fair thing to tell yourself."],
+          ["SOFTEN.","Your body deserves compassion for the work it's doing."],
+        ]},
+      { title:"Breathe through a worry", category:"Calm", color:"#7f9ec4",
+        lines:[
+          ["DO.","When anxiety about pregnancy or birth arises, take five slow breaths before doing anything else."],
+          ["TIP.","In for four, out for six, is a simple pattern to remember."],
+          ["SETTLE.","This won't erase the worry, but it can soften its grip."],
+        ]},
+      { title:"Write down your worries", category:"Calm", color:"#8eaacb",
+        lines:[
+          ["DO.","Write down whatever pregnancy worries are circling your mind right now."],
+          ["TIP.","You can bring a written list to your next appointment if it helps."],
+          ["RELEASE.","Getting worries out of your head can bring real relief."],
+        ]},
+      { title:"Limit the scrolling", category:"Calm", color:"#9eb5d2",
+        lines:[
+          ["DO.","Set a limit on how much you research or scroll pregnancy content today."],
+          ["TIP.","More information doesn't always mean more calm."],
+          ["PROTECT.","Too much unfiltered information can increase anxiety rather than ease it."],
+        ]},
+      { title:"Find your calming anchor", category:"Calm", color:"#b0c3da",
+        lines:[
+          ["DO.","Choose one thing that reliably calms you, music, a bath, a particular walk, and use it today."],
+          ["TIP.","Knowing your go-to in advance makes it easier to reach for in a hard moment."],
+          ["ANCHOR.","A reliable calming ritual is worth having ready."],
+        ]},
+      { title:"Talk to your baby", category:"Connection", color:"#d4a855",
+        lines:[
+          ["DO.","Spend a few minutes talking or singing to your baby, whatever feels natural."],
+          ["TIP.","It might feel strange at first, that's completely normal."],
+          ["BOND.","This is one of the simplest ways to start building connection early."],
+        ]},
+      { title:"Include your partner", category:"Connection", color:"#d9b269",
+        lines:[
+          ["DO.","If you have a partner, invite them into a specific part of this experience, a scan, a name conversation, a nursery task."],
+          ["TIP.","Connection can be built deliberately, not just assumed."],
+          ["SHARE.","Involving them helps the pregnancy feel like something you're doing together."],
+        ]},
+      { title:"Notice a kick or movement fully", category:"Connection", color:"#debd7e",
+        lines:[
+          ["DO.","Next time you feel movement, pause and notice it fully instead of letting it pass unnoticed."],
+          ["TIP.","Put a hand on your belly and just be present with it."],
+          ["NOTICE.","These small moments are easy to rush past."],
+        ]},
+      { title:"Reach out to someone who's been there", category:"Connection", color:"#e4c996",
+        lines:[
+          ["DO.","Talk to someone who has been pregnant before about their experience."],
+          ["TIP.","You don't need advice, just honest company."],
+          ["CONNECT.","Shared experience can be deeply reassuring."],
+        ]},
+      { title:"Learn one new thing", category:"Preparation", color:"#7fa885",
+        lines:[
+          ["DO.","Spend fifteen minutes learning about one part of birth or early parenthood you're unsure about."],
+          ["TIP.","Small, manageable chunks are easier than trying to learn everything at once."],
+          ["LEARN.","A little preparation reduces fear of the unknown."],
+        ]},
+      { title:"Write down your questions", category:"Preparation", color:"#8eb294",
+        lines:[
+          ["DO.","Keep a running list of questions for your next appointment."],
+          ["TIP.","It's easy to forget them in the moment otherwise."],
+          ["PREPARE.","Written questions mean you leave appointments with real answers."],
+        ]},
+      { title:"Do one practical task", category:"Preparation", color:"#9ebda2",
+        lines:[
+          ["DO.","Tick off one small preparation task this week, packing a bag, researching an item, tidying a space."],
+          ["TIP.","Small steps prevent a last-minute scramble."],
+          ["PROGRESS.","Preparation in small pieces feels far less overwhelming."],
+        ]},
+      { title:"Talk about what you want", category:"Preparation", color:"#b0c9b3",
+        lines:[
+          ["DO.","Have a conversation with your support person about what you'd like during birth, as much as you can plan."],
+          ["TIP.","Preferences can change, but naming them now still helps."],
+          ["COMMUNICATE.","Being heard on your preferences matters, even amid uncertainty."],
+        ]},
+      { title:"Ask for what you need", category:"Self-care", color:"#9e8fc4",
+        lines:[
+          ["DO.","Tell someone specifically what would help you this week."],
+          ["TIP.","People often want to support you but don't know how."],
+          ["ASK.","Clear requests are easier for people to meet than hoping they'll guess."],
+        ]},
+      { title:"Protect quiet time", category:"Self-care", color:"#aa9ccb",
+        lines:[
+          ["DO.","Carve out a little quiet time today, even fifteen minutes, just for you."],
+          ["TIP.","This becomes harder later, so protect it while you can."],
+          ["RECHARGE.","Quiet moments now are worth prioritising."],
+        ]},
+      { title:"Say yes to help", category:"Self-care", color:"#b5aad2",
+        lines:[
+          ["DO.","Next time someone offers to help, accept it."],
+          ["TIP.","Practising accepting help now sets you up for the postpartum period too."],
+          ["ACCEPT.","You don't have to do this, or anything after, entirely alone."],
+        ]},
+      { title:"Celebrate this chapter", category:"Self-care", color:"#c3bada",
+        lines:[
+          ["DO.","Take a moment to acknowledge what you're doing right now, growing a person."],
+          ["TIP.","It's easy to rush past how significant this actually is."],
+          ["HONOUR.","This chapter deserves its own recognition, not just what comes after."],
+        ]},
+    ]
+  },
+  recovery: {
+    label: "for recovery",
+    desc: "20 activities to support steady, honest progress in recovery.",
+    tileColors: ["#b95f5f","#5f7fa6","#8a6fbf","#4f8f5f","#d4a855"],
+    cards: [
+      { title:"Ride the wave", category:"Cravings", color:"#b95f5f",
+        lines:[
+          ["DO.","When a craving hits, remind yourself it will pass, usually within twenty minutes, and wait it out."],
+          ["TIP.","Distraction, movement, or calling someone can help you through the wait."],
+          ["WAIT.","Cravings are intense but temporary, they do not last forever."],
+        ]},
+      { title:"Name the trigger", category:"Cravings", color:"#c17272",
+        lines:[
+          ["DO.","Notice what situation, feeling, or place triggered this craving."],
+          ["TIP.","Patterns become easier to manage once you can name them."],
+          ["IDENTIFY.","Understanding your triggers is a form of real power over them."],
+        ]},
+      { title:"Have a plan ready", category:"Cravings", color:"#ca8585",
+        lines:[
+          ["DO.","Decide in advance what you'll do the next time a craving hits, a call, a walk, a specific distraction."],
+          ["TIP.","Deciding in the moment is much harder than deciding ahead of time."],
+          ["PREPARE.","A ready plan removes the need for willpower alone."],
+        ]},
+      { title:"Reach out before, not after", category:"Cravings", color:"#d49c9c",
+        lines:[
+          ["DO.","If you feel a craving building, contact your support person before it peaks, not after you've struggled alone."],
+          ["TIP.","Early reaching out is far more effective than a call after the fact."],
+          ["CONNECT.","You don't have to face a craving in isolation."],
+        ]},
+      { title:"Go to your meeting or check-in", category:"Support", color:"#5f7fa6",
+        lines:[
+          ["DO.","Attend your scheduled support meeting or check-in today, even if you don't feel like it."],
+          ["TIP.","Showing up on hard days matters more than showing up on easy ones."],
+          ["SHOW UP.","Consistency in support is what makes it effective."],
+        ]},
+      { title:"Tell someone the truth", category:"Support", color:"#728eb1",
+        lines:[
+          ["DO.","Be honest with your support person about how today is actually going."],
+          ["TIP.","Recovery depends on honesty more than almost anything else."],
+          ["SPEAK.","Hiding a struggle only makes it heavier to carry alone."],
+        ]},
+      { title:"Thank someone in your corner", category:"Support", color:"#859ebb",
+        lines:[
+          ["DO.","Tell someone supporting your recovery what their support has meant to you."],
+          ["TIP.","They're likely carrying more concern for you than you realise."],
+          ["APPRECIATE.","Naming their support out loud strengthens the relationship."],
+        ]},
+      { title:"Widen your circle", category:"Support", color:"#9cb0c8",
+        lines:[
+          ["DO.","Take one small step to connect with someone else in recovery."],
+          ["TIP.","A meeting, a group, an online community, whatever's accessible to you."],
+          ["CONNECT.","Shared experience offers understanding few others can give."],
+        ]},
+      { title:"You are not your worst day", category:"Identity", color:"#8a6fbf",
+        lines:[
+          ["DO.","Write one sentence about who you are that isn't defined by your addiction."],
+          ["TIP.","Recovery includes rebuilding a sense of self beyond the struggle."],
+          ["REMEMBER.","You are a whole person, not only the hardest chapter."],
+        ]},
+      { title:"Notice who you're becoming", category:"Identity", color:"#9880c7",
+        lines:[
+          ["DO.","Name one way you've changed for the better since starting recovery."],
+          ["TIP.","Growth in recovery is often gradual and easy to overlook."],
+          ["NOTICE.","You are actively becoming someone, pay attention to who that is."],
+        ]},
+      { title:"Reclaim an old interest", category:"Identity", color:"#a692ce",
+        lines:[
+          ["DO.","Revisit something you used to enjoy before it got crowded out."],
+          ["TIP.","It doesn't have to be the same as it was, just a starting point."],
+          ["RECLAIM.","Recovery includes rebuilding a full life, not just removing a substance."],
+        ]},
+      { title:"Write your own definition", category:"Identity", color:"#b6a6d7",
+        lines:[
+          ["DO.","Write down what \"recovery\" means to you personally, in your own words."],
+          ["TIP.","It doesn't have to match anyone else's definition."],
+          ["DEFINE.","Owning your own meaning of recovery makes it more sustainable."],
+        ]},
+      { title:"Anchor your morning", category:"Routine", color:"#4f8f5f",
+        lines:[
+          ["DO.","Choose one small, steady thing to do each morning, regardless of how you feel."],
+          ["TIP.","A consistent start helps stabilise the rest of the day."],
+          ["ANCHOR.","Predictable routines are protective in recovery."],
+        ]},
+      { title:"Fill the space intentionally", category:"Routine", color:"#649c72",
+        lines:[
+          ["DO.","Plan one activity to fill time that used to be spent on old habits."],
+          ["TIP.","Empty, unstructured time can be a real risk factor."],
+          ["FILL.","Intentional structure protects the space old habits used to occupy."],
+        ]},
+      { title:"Keep a simple daily check-in", category:"Routine", color:"#79aa85",
+        lines:[
+          ["DO.","At the end of each day, briefly note how you're doing, honestly."],
+          ["TIP.","A simple scale or a few words is enough."],
+          ["TRACK.","Regular check-ins catch small dips before they become large ones."],
+        ]},
+      { title:"Protect your sleep", category:"Routine", color:"#92ba9c",
+        lines:[
+          ["DO.","Prioritise a consistent bedtime tonight, even if it feels like a small thing."],
+          ["TIP.","Poor sleep makes cravings and low moods harder to manage."],
+          ["PROTECT.","Stable sleep is a genuine foundation for stable recovery."],
+        ]},
+      { title:"Mark the day count", category:"Celebration", color:"#d4a855",
+        lines:[
+          ["DO.","Acknowledge how long you've been in recovery today, whatever the number is."],
+          ["TIP.","Every single day counts, not just the big round numbers."],
+          ["COUNT.","Consistent effort deserves consistent recognition."],
+        ]},
+      { title:"Celebrate a hard day survived", category:"Celebration", color:"#d9b269",
+        lines:[
+          ["DO.","If today was difficult and you got through it without returning to old habits, celebrate that specifically."],
+          ["TIP.","Hard days that end well are some of the biggest wins in recovery."],
+          ["ACKNOWLEDGE.","Surviving a hard day is a real achievement, not a given."],
+        ]},
+      { title:"Tell someone your milestone", category:"Celebration", color:"#debd7e",
+        lines:[
+          ["DO.","Share a recovery milestone with someone who will genuinely celebrate it with you."],
+          ["TIP.","Choose someone who understands what it took to get here."],
+          ["SHARE.","Milestones feel more real when they're witnessed."],
+        ]},
+      { title:"Do something just for joy", category:"Celebration", color:"#e4c996",
+        lines:[
+          ["DO.","Plan one small thing today purely because it brings you joy, no other reason needed."],
+          ["TIP.","Recovery includes rebuilding a life worth being present for."],
+          ["ENJOY.","You deserve moments of joy along this path, not just relief from struggle."],
+        ]},
+    ]
+  },
+};
+
+const CORE_DECK_ORDER = ["me","work","meyou","sleep","anxiety","money"];
+const MORE_DECK_ORDER = ["family","friends","students","newparents","grief","creativity","fitness","caregivers","careerchange","teens","longdistance","pregnancy","recovery"];
+
+const el = {
+  landingView: document.getElementById('landingView'),
+  moreView: document.getElementById('moreView'),
+  moreCategoriesBtn: document.getElementById('moreCategoriesBtn'),
+  moreBackLink: document.getElementById('moreBackLink'),
+  moreTiles: document.getElementById('moreTiles'),
+  pickerView: document.getElementById('pickerView'),
+  hero: document.getElementById('hero'),
+  scene: document.getElementById('scene'),
+  card3d: document.getElementById('card3d'),
+  faceFront: document.getElementById('faceFront'),
+  faceBack: document.getElementById('faceBack'),
+  frontTitle: document.getElementById('frontTitle'),
+  frontPill: document.getElementById('frontPill'),
+  backLines: document.getElementById('backLines'),
+  flipBtn: document.getElementById('flipBtn'),
+  drawBtn: document.getElementById('drawBtn'),
+  surpriseBtn: document.getElementById('surpriseBtn'),
+  backLink: document.getElementById('backLink'),
+  landingBackLink: document.getElementById('landingBackLink'),
+  colorGrid: document.getElementById('colorGrid'),
+  deckTiles: document.getElementById('deckTiles'),
+  pickerSpan: document.getElementById('pickerSpan'),
+  heroSpan: document.getElementById('heroSpan'),
+  body: document.body,
+};
+
+let currentDeckId = 'me';
+let returnView = 'landing';
+let CARDS = DECKS.me.cards;
+let currentIndex = 0;
+let isFlipped = false;
+
+// ---------- colour helpers ----------
+function hexToRgb(hex){
+  const h = hex.replace('#','');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+function rgbToHex(r,g,b){
+  return `#${[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('')}`;
+}
+function lighten(hex, amt){
+  const [r,g,b] = hexToRgb(hex);
+  const f = (c)=> Math.min(255, Math.round(c + (255-c)*amt));
+  return rgbToHex(f(r),f(g),f(b));
+}
+function darken(hex, amt){
+  const [r,g,b] = hexToRgb(hex);
+  const f = (c)=> Math.max(0, Math.round(c * (1-amt)));
+  return rgbToHex(f(r),f(g),f(b));
+}
+function hexToHsv(hex){
+  let [r,g,b] = hexToRgb(hex).map(v=>v/255);
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max-min;
+  let h = 0;
+  if(d !== 0){
+    if(max === r) h = ((g-b)/d) % 6;
+    else if(max === g) h = (b-r)/d + 2;
+    else h = (r-g)/d + 4;
+    h *= 60;
+    if(h < 0) h += 360;
+  }
+  const s = max === 0 ? 0 : d/max;
+  return [h, s, max];
+}
+function hsvToHex(h,s,v){
+  const c = v*s, x = c*(1-Math.abs((h/60)%2-1)), m = v-c;
+  let r,g,b;
+  if(h<60){r=c;g=x;b=0;} else if(h<120){r=x;g=c;b=0;} else if(h<180){r=0;g=c;b=x;}
+  else if(h<240){r=0;g=x;b=c;} else if(h<300){r=x;g=0;b=c;} else {r=c;g=0;b=x;}
+  return rgbToHex((r+m)*255,(g+m)*255,(b+m)*255);
+}
+function boldFromHex(hex){
+  const [h,s] = hexToHsv(hex);
+  const boldS = Math.min(0.72, Math.max(s*1.6, 0.5));
+  const boldV = (h > 42 && h < 72) ? 0.72 : 0.6; // keep yellows a touch lighter, others punchy
+  return hsvToHex(h, boldS, boldV);
+}
+function relLuminance(hex){
+  const [r,g,b] = hexToRgb(hex).map(v=>{
+    v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4);
+  });
+  return 0.2126*r + 0.7152*g + 0.0722*b;
+}
+function pickTextColor(bgHex){
+  return relLuminance(bgHex) > 0.42 ? '#20242c' : '#fdfbf7';
+}
+
+function applyCard(idx, {animate=true, keepFace=false} = {}){
+  const c = CARDS[idx];
+  currentIndex = idx;
+
+  const bold = boldFromHex(c.color);
+  const textColor = pickTextColor(bold);
+  const pillBg = lighten(c.color, 0.84);
+  const pillText = darken(c.color, 0.42);
+  const deep = darken(c.color, 0.18);
+
+  el.hero.style.setProperty('--hero-bg', bold);
+  el.hero.style.setProperty('--hero-text', textColor);
+
+  [el.faceFront, el.faceBack].forEach(f=>{
+    f.style.setProperty('--accent', c.color);
+    f.style.setProperty('--accent-deep', deep);
+    f.style.setProperty('--pill-bg', pillBg);
+    f.style.setProperty('--pill-text', pillText);
+  });
+
+  el.frontTitle.textContent = c.title;
+  el.frontPill.textContent = c.category;
+  el.backLines.innerHTML = c.lines.map(([label,text]) => `
+    <div class="bl-item">
+      <span class="bl-label">${label}</span> <span class="bl-text">${text}</span>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('.color-grid .swatch').forEach(sw=>{
+    sw.classList.toggle('active', Number(sw.dataset.index) === idx);
+  });
+
+  if(!keepFace){
+    isFlipped = false;
+    el.card3d.classList.remove('flipped');
+  }
+
+  if(animate){
+    el.scene.classList.remove('dealing');
+    void el.scene.offsetWidth; // reflow to restart animation
+    el.scene.classList.add('dealing');
+  }
+}
+
+function toggleFlip(){
+  isFlipped = !isFlipped;
+  el.card3d.classList.toggle('flipped', isFlipped);
+}
+
+function renderColorGrid(){
+  el.colorGrid.innerHTML = '';
+  CARDS.forEach((item, index)=>{
+    const btn = document.createElement('button');
+    btn.className = 'swatch';
+    btn.style.background = item.color;
+    btn.style.setProperty('--sw-color', item.color);
+    btn.style.animationDelay = `${index * 25}ms`;
+    btn.dataset.index = index;
+    btn.setAttribute('aria-label', item.title);
+    btn.title = item.title;
+    btn.innerHTML = `<span class="check">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </span>`;
+    btn.addEventListener('click', ()=> showCard(index));
+    el.colorGrid.appendChild(btn);
+  });
+}
+
+// The card and colour-picker screens lock to one viewport (no page scroll);
+// the landing and "more categories" screens scroll normally as tile lists grow.
+function lockPageScroll(locked){
+  document.documentElement.classList.toggle('no-scroll', locked);
+}
+
+function openDeck(deckId){
+  currentDeckId = deckId;
+  CARDS = DECKS[deckId].cards;
+  el.pickerSpan.textContent = DECKS[deckId].label;
+  el.heroSpan.textContent = DECKS[deckId].label;
+  renderColorGrid();
+  el.landingView.hidden = true;
+  el.moreView.hidden = true;
+  el.pickerView.hidden = false;
+  el.hero.hidden = true;
+  lockPageScroll(true);
+  window.scrollTo(0,0);
+}
+
+function showCard(idx){
+  applyCard(idx, {animate:false});
+  el.pickerView.hidden = true;
+  el.hero.hidden = false;
+  lockPageScroll(true);
+  // restart entrance animations now that the section is visible
+  el.scene.classList.remove('dealing');
+  void el.scene.offsetWidth;
+  el.scene.classList.add('dealing');
+}
+
+function showPicker(){
+  el.hero.hidden = true;
+  el.pickerView.hidden = false;
+  lockPageScroll(true);
+  document.querySelectorAll('.color-grid .swatch').forEach(sw=> sw.classList.remove('active'));
+}
+
+function showLanding(){
+  el.hero.hidden = true;
+  el.pickerView.hidden = true;
+  el.moreView.hidden = true;
+  el.landingView.hidden = false;
+  lockPageScroll(false);
+}
+
+function showMoreCategories(){
+  el.landingView.hidden = true;
+  el.moreView.hidden = false;
+  lockPageScroll(false);
+  window.scrollTo(0,0);
+}
+
+function goBackToDecks(){
+  if(returnView === 'more'){
+    el.hero.hidden = true;
+    el.pickerView.hidden = true;
+    el.landingView.hidden = true;
+    el.moreView.hidden = false;
+    lockPageScroll(false);
+  } else {
+    showLanding();
+  }
+}
+
+el.card3d.addEventListener('click', toggleFlip);
+el.flipBtn.addEventListener('click', toggleFlip);
+
+el.drawBtn.addEventListener('click', ()=>{
+  let next = currentIndex;
+  while(next === currentIndex && CARDS.length > 1){
+    next = Math.floor(Math.random() * CARDS.length);
+  }
+  applyCard(next);
+});
+
+el.surpriseBtn.addEventListener('click', ()=>{
+  showCard(Math.floor(Math.random() * CARDS.length));
+});
+
+el.backLink.addEventListener('click', showPicker);
+el.landingBackLink.addEventListener('click', goBackToDecks);
+el.moreCategoriesBtn.addEventListener('click', showMoreCategories);
+el.moreBackLink.addEventListener('click', showLanding);
+
+// build deck-choice tiles: core decks on the landing screen, the rest in "more categories"
+function buildTile(id, container, origin){
+  const deck = DECKS[id];
+  const btn = document.createElement('button');
+  btn.className = 'deck-tile';
+  const bg = lighten(deck.tileColors[0], 0.75);
+  btn.style.setProperty('--tile-bg', bg);
+  btn.style.setProperty('--tile-ink', darken(deck.tileColors[0], 0.35));
+  const dotsHtml = deck.tileColors.map(c=> `<span style="background:${c}"></span>`).join('');
+  btn.innerHTML = `
+    <span class="tile-name">Mood Cards <em style="font-style:italic;">${deck.label}</em></span>
+    <span class="tile-desc">${deck.desc}</span>
+    <span class="tile-dots">${dotsHtml}</span>
+  `;
+  btn.addEventListener('click', ()=>{
+    returnView = origin;
+    openDeck(id);
+  });
+  container.appendChild(btn);
+}
+
+CORE_DECK_ORDER.forEach(id=> buildTile(id, el.deckTiles, 'landing'));
+MORE_DECK_ORDER.forEach(id=> buildTile(id, el.moreTiles, 'more'));
+
+// landing view is shown first, so the page should scroll from the start
+lockPageScroll(false);
+</script>
+</body>
+</html>
