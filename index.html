@@ -624,6 +624,43 @@
     .how-to-step p{ display:none; }
     .how-to{ gap:14px; }
   }
+  /* ---------- Card of the day, favourites and reminder ---------- */
+  .daily{ width:100%; max-width:560px; margin: 0 auto 2vh; display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .daily-card{
+    width:100%; border:none; cursor:pointer; text-align:left;
+    border-radius:22px; padding:14px 18px;
+    background: var(--daily-bg, #eef0ff); color: var(--daily-ink, var(--ink));
+    display:flex; flex-direction:column; gap:2px;
+    font-family:'Nunito', sans-serif;
+    transition: transform 0.25s cubic-bezier(.4,1.2,.5,1), box-shadow 0.25s ease;
+    box-shadow: 0 10px 24px -14px rgba(0,0,0,0.4);
+  }
+  .daily-card:hover{ transform: translateY(-2px); }
+  .daily-card:active{ transform: scale(0.99); }
+  .daily-card.due{ box-shadow: 0 0 0 3px var(--daily-ink, var(--ink)), 0 10px 24px -14px rgba(0,0,0,0.4); }
+  .daily-kicker{ font-size:0.72rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; opacity:0.7; }
+  .daily-title{ font-family:'Fredoka', sans-serif; font-weight:600; font-size:1.25rem; }
+  .daily-meta{ font-size:0.8rem; opacity:0.75; }
+  .daily-tools{ display:flex; flex-wrap:wrap; gap:8px 22px; align-items:center; justify-content:center; font-size:0.85rem; }
+  .daily-tools .linkbtn{ font-size:0.92rem; }
+  .remind{ display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .remind input[type=time]{ font:inherit; border:1px solid rgba(0,0,0,0.2); border-radius:8px; padding:1px 4px; background:rgba(255,255,255,0.7); color:inherit; }
+  .remind input:focus-visible, .daily-card:focus-visible, .fav-item:focus-visible{ outline:3px solid var(--ink); outline-offset:2px; }
+  .remind-note{ margin:0; min-height:1.1em; font-size:0.78rem; opacity:0.72; max-width:460px; }
+  .fav-list{ width:100%; max-width:560px; display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+  .fav-row{ display:flex; align-items:stretch; gap:6px; }
+  .fav-item{
+    flex:1; border:none; cursor:pointer; text-align:left; border-radius:16px; padding:10px 14px;
+    background: var(--fav-bg); color: var(--fav-ink);
+    display:flex; flex-direction:column; font-family:'Nunito', sans-serif;
+  }
+  .fav-item strong{ font-family:'Fredoka', sans-serif; font-weight:600; font-size:1.05rem; }
+  .fav-item span{ font-size:0.78rem; opacity:0.75; }
+  .fav-remove{ border:none; background:rgba(0,0,0,0.06); border-radius:16px; width:44px; cursor:pointer; font-size:1rem; color:var(--ink); }
+  .fav-remove:hover{ background:rgba(0,0,0,0.12); }
+  .fav-empty{ opacity:0.7; font-size:0.9rem; margin:10px 0; }
+  #favBtn svg{ fill:none; }
+  #favBtn[aria-pressed="true"] svg{ fill:currentColor; }
 </style>
 </head>
 <body>
@@ -641,6 +678,18 @@
     </div>
     <h1>Mood Cards</h1>
     <p class="panel-tag">Little activities that shift your mood, one colour at a time. Choose a deck to begin.</p>
+    <div class="daily">
+      <button class="daily-card" id="dailyBtn">
+        <span class="daily-kicker">Card of the day</span>
+        <span class="daily-title" id="dailyTitle"></span>
+        <span class="daily-meta" id="dailyMeta"></span>
+      </button>
+      <div class="daily-tools">
+        <button class="linkbtn" id="favoritesBtn">Favourites <span id="favCount">(0)</span></button>
+        <label class="remind"><input type="checkbox" id="remindToggle"> Remind me daily at <input type="time" id="remindTime" value="09:00" aria-label="Reminder time"></label>
+      </div>
+      <p class="remind-note" id="remindNote" role="status"></p>
+    </div>
     <div class="deck-tiles" id="deckTiles"></div>
     <div class="how-to">
       <div class="how-to-step">
@@ -671,6 +720,21 @@
     <h1>More categories</h1>
     <p class="panel-tag">A few more specific decks, for particular moods and moments.</p>
     <div class="deck-tiles" id="moreTiles"></div>
+  </div>
+</section>
+
+<section class="screen more-view" id="favView" hidden>
+  <div class="rainbow-bg"></div>
+  <div class="screen-blob hero-blob-a"></div>
+  <div class="screen-blob hero-blob-b"></div>
+  <div class="panel">
+    <button class="back-link" id="favBackLink">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      decks
+    </button>
+    <h1>Favourites</h1>
+    <p class="panel-tag">Cards you've saved, kept on this device.</p>
+    <div class="fav-list" id="favList"></div>
   </div>
 </section>
 
@@ -738,6 +802,10 @@
         <button class="linkbtn" id="flipBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3l4 4-4 4M21 7H8M7 21l-4-4 4-4M3 17h13"/></svg>
           Flip card
+        </button>
+        <button class="linkbtn" id="favBtn" aria-pressed="false">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.6-9.3-9.1C1.2 8.9 3 5.5 6.3 5.5c1.9 0 3.3 1 3.7 2.2.4-1.2 1.8-2.2 3.7-2.2 3.3 0 5.1 3.4 3.6 6.4C19 16.4 12 21 12 21z"/></svg>
+          <span id="favLabel">Save</span>
         </button>
         <button class="linkbtn draw" id="drawBtn">
           Draw a card
@@ -3203,6 +3271,19 @@ const el = {
   deckTiles: document.getElementById('deckTiles'),
   pickerSpan: document.getElementById('pickerSpan'),
   heroSpan: document.getElementById('heroSpan'),
+  favView: document.getElementById('favView'),
+  favList: document.getElementById('favList'),
+  favBtn: document.getElementById('favBtn'),
+  favLabel: document.getElementById('favLabel'),
+  favCount: document.getElementById('favCount'),
+  favoritesBtn: document.getElementById('favoritesBtn'),
+  favBackLink: document.getElementById('favBackLink'),
+  dailyBtn: document.getElementById('dailyBtn'),
+  dailyTitle: document.getElementById('dailyTitle'),
+  dailyMeta: document.getElementById('dailyMeta'),
+  remindToggle: document.getElementById('remindToggle'),
+  remindTime: document.getElementById('remindTime'),
+  remindNote: document.getElementById('remindNote'),
   body: document.body,
 };
 
@@ -3299,6 +3380,8 @@ function applyCard(idx, {animate=true, keepFace=false} = {}){
     sw.classList.toggle('active', Number(sw.dataset.index) === idx);
   });
 
+  updateFavButton();
+
   if(!keepFace){
     isFlipped = false;
     el.card3d.classList.remove('flipped');
@@ -3349,6 +3432,7 @@ function openDeck(deckId){
   renderColorGrid();
   el.landingView.hidden = true;
   el.moreView.hidden = true;
+  el.favView.hidden = true;
   el.pickerView.hidden = false;
   el.hero.hidden = true;
   lockPageScroll(true);
@@ -3377,8 +3461,10 @@ function showLanding(){
   el.hero.hidden = true;
   el.pickerView.hidden = true;
   el.moreView.hidden = true;
+  el.favView.hidden = true;
   el.landingView.hidden = false;
   lockPageScroll(false);
+  refreshDaily();
 }
 
 function showMoreCategories(){
@@ -3389,7 +3475,11 @@ function showMoreCategories(){
 }
 
 function goBackToDecks(){
-  if(returnView === 'more'){
+  if(returnView === 'favs'){
+    el.hero.hidden = true;
+    el.pickerView.hidden = true;
+    showFavourites();
+  } else if(returnView === 'more'){
     el.hero.hidden = true;
     el.pickerView.hidden = true;
     el.landingView.hidden = true;
@@ -3443,6 +3533,186 @@ function buildTile(id, container, origin){
 
 CORE_DECK_ORDER.forEach(id=> buildTile(id, el.deckTiles, 'landing'));
 MORE_DECK_ORDER.forEach(id=> buildTile(id, el.moreTiles, 'more'));
+
+// ---------- favourites, card of the day, reminder ----------
+// Everything is stored in localStorage on this device; storage can be blocked
+// (private mode), so every read and write is guarded.
+const FAV_KEY = 'moodcards.favourites';
+const REMIND_KEY = 'moodcards.reminder';
+const SEEN_KEY = 'moodcards.dailySeen';
+
+function loadJSON(key, fallback){
+  try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; }
+  catch(e){ return fallback; }
+}
+function saveJSON(key, value){
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch(e){}
+}
+
+const ALL_DECK_IDS = CORE_DECK_ORDER.concat(MORE_DECK_ORDER);
+
+function parseCardKey(key){
+  const [deckId, idx] = String(key).split(':');
+  return {deckId, idx: Number(idx)};
+}
+function isValidCardKey(key){
+  const {deckId, idx} = parseCardKey(key);
+  return !!DECKS[deckId] && Number.isInteger(idx) && !!DECKS[deckId].cards[idx];
+}
+function todayKey(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+const storedFavs = loadJSON(FAV_KEY, []);
+let favourites = (Array.isArray(storedFavs) ? storedFavs : []).filter(isValidCardKey);
+let reminder = Object.assign({on:false, time:'09:00'}, loadJSON(REMIND_KEY, {}));
+if(!/^\d{2}:\d{2}$/.test(reminder.time)) reminder.time = '09:00';
+let reminderTimer = null;
+
+// Same card for everyone on the same calendar day: hash the date into the full card list.
+function dailyCardKey(){
+  const all = [];
+  ALL_DECK_IDS.forEach(id => DECKS[id].cards.forEach((_, i) => all.push(`${id}:${i}`)));
+  let h = 2166136261;
+  for(const ch of todayKey()){ h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0; }
+  return all[h % all.length];
+}
+
+function openCardByKey(key, origin){
+  const {deckId, idx} = parseCardKey(key);
+  returnView = origin;
+  openDeck(deckId);
+  showCard(idx);
+}
+
+function updateFavButton(){
+  const on = favourites.includes(`${currentDeckId}:${currentIndex}`);
+  el.favBtn.setAttribute('aria-pressed', String(on));
+  el.favLabel.textContent = on ? 'Saved' : 'Save';
+}
+function updateFavCount(){
+  el.favCount.textContent = `(${favourites.length})`;
+}
+function toggleFavourite(key){
+  const i = favourites.indexOf(key);
+  if(i >= 0) favourites.splice(i, 1); else favourites.push(key);
+  saveJSON(FAV_KEY, favourites);
+  updateFavButton();
+  updateFavCount();
+}
+
+function renderFavourites(){
+  el.favList.innerHTML = '';
+  if(!favourites.length){
+    const p = document.createElement('p');
+    p.className = 'fav-empty';
+    p.textContent = 'No favourites yet. Tap Save on any card to keep it here.';
+    el.favList.appendChild(p);
+    return;
+  }
+  favourites.forEach(key=>{
+    const {deckId, idx} = parseCardKey(key);
+    const card = DECKS[deckId].cards[idx];
+    const row = document.createElement('div');
+    row.className = 'fav-row';
+    const open = document.createElement('button');
+    open.className = 'fav-item';
+    open.style.setProperty('--fav-bg', lighten(card.color, 0.75));
+    open.style.setProperty('--fav-ink', darken(card.color, 0.6));
+    const name = document.createElement('strong');
+    name.textContent = card.title;
+    const meta = document.createElement('span');
+    meta.textContent = `${DECKS[deckId].label} · ${card.category}`;
+    open.append(name, meta);
+    open.addEventListener('click', ()=> openCardByKey(key, 'favs'));
+    const del = document.createElement('button');
+    del.className = 'fav-remove';
+    del.textContent = '✕';
+    del.setAttribute('aria-label', `Remove ${card.title} from favourites`);
+    del.addEventListener('click', ()=>{ toggleFavourite(key); renderFavourites(); });
+    row.append(open, del);
+    el.favList.appendChild(row);
+  });
+}
+
+function showFavourites(){
+  renderFavourites();
+  el.landingView.hidden = true;
+  el.moreView.hidden = true;
+  el.favView.hidden = false;
+  lockPageScroll(false);
+  window.scrollTo(0,0);
+}
+
+function reminderDue(){
+  if(!reminder.on || loadJSON(SEEN_KEY, '') === todayKey()) return false;
+  const [hh, mm] = reminder.time.split(':').map(Number);
+  const now = new Date();
+  return now.getHours()*60 + now.getMinutes() >= hh*60 + mm;
+}
+
+function refreshDaily(){
+  const {deckId, idx} = parseCardKey(dailyCardKey());
+  const card = DECKS[deckId].cards[idx];
+  const due = reminderDue();
+  el.dailyTitle.textContent = card.title;
+  el.dailyMeta.textContent = `${DECKS[deckId].label} · ${card.category}`;
+  el.dailyBtn.style.setProperty('--daily-bg', lighten(card.color, 0.7));
+  el.dailyBtn.style.setProperty('--daily-ink', darken(card.color, 0.6));
+  el.dailyBtn.classList.toggle('due', due);
+  if(due) el.remindNote.textContent = 'Your card of the day is ready.';
+  else el.remindNote.textContent = reminder.on ? `Gentle nudge at ${reminder.time} while Mood Cards is open in a tab.` : '';
+}
+
+// Browsers can't wake a closed page without a server, so the reminder is a
+// highlight on the card of the day plus a notification if a tab is open.
+function scheduleReminder(){
+  clearTimeout(reminderTimer);
+  if(!reminder.on) return;
+  const [hh, mm] = reminder.time.split(':').map(Number);
+  const at = new Date(); at.setHours(hh, mm, 0, 0);
+  if(at <= new Date()) at.setDate(at.getDate() + 1);
+  reminderTimer = setTimeout(()=>{
+    refreshDaily();
+    if('Notification' in window && Notification.permission === 'granted'){
+      try { new Notification('Mood Cards', {body: 'Your card of the day is ready.'}); } catch(e){}
+    }
+    scheduleReminder();
+  }, Math.min(at - new Date(), 2147483647));
+}
+
+async function setReminder(on){
+  reminder.on = on;
+  if(on && 'Notification' in window && Notification.permission === 'default'){
+    try { await Notification.requestPermission(); } catch(e){}
+  }
+  saveJSON(REMIND_KEY, reminder);
+  scheduleReminder();
+  refreshDaily();
+}
+
+el.favBtn.addEventListener('click', ()=> toggleFavourite(`${currentDeckId}:${currentIndex}`));
+el.favoritesBtn.addEventListener('click', showFavourites);
+el.favBackLink.addEventListener('click', showLanding);
+el.dailyBtn.addEventListener('click', ()=>{
+  saveJSON(SEEN_KEY, todayKey());
+  openCardByKey(dailyCardKey(), 'landing');
+});
+el.remindToggle.checked = reminder.on;
+el.remindTime.value = reminder.time;
+el.remindToggle.addEventListener('change', ()=> setReminder(el.remindToggle.checked));
+el.remindTime.addEventListener('change', ()=>{
+  if(!el.remindTime.value) return;
+  reminder.time = el.remindTime.value;
+  saveJSON(REMIND_KEY, reminder);
+  scheduleReminder();
+  refreshDaily();
+});
+
+updateFavCount();
+refreshDaily();
+scheduleReminder();
 
 // landing view is shown first, so the page should scroll from the start
 lockPageScroll(false);

@@ -22,6 +22,8 @@ The Mood Club sells small tins of mood-boosting activity cards — each card has
 - Colour picker per deck, with the swatches derived from each card's own colour
 - Card flip animation (front: title + category; back: DO/TIP/activity)
 - "Draw a card" (random) and "Flip card" controls
+- Save cards as favourites (kept in your browser) and open them from the Favourites screen
+- A "Card of the day" on the landing screen, with an optional daily reminder (a highlight, plus a notification while the tab is open)
 - Fully responsive — the card/colour-picker screens lock to one viewport (an app-like feel), while the deck-browsing screens scroll normally as the list of decks grows
 - Zero dependencies beyond a Google Fonts import (Fredoka + Nunito)
 
