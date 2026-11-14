@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "Mood Cards",
+  "short_name": "Mood Cards",
+  "description": "Pick a deck, pick a colour, and flip a card for a quick, practical activity to try right now.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf7f0",
+  "theme_color": "#5c6bd8",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

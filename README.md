@@ -25,6 +25,7 @@ The Mood Club sells small tins of mood-boosting activity cards — each card has
 - Save cards as favourites (kept in your browser) and open them from the Favourites screen
 - A "Card of the day" on the landing screen, with an optional daily reminder (a highlight, plus a notification while the tab is open)
 - Fully responsive — the card/colour-picker screens lock to one viewport (an app-like feel), while the deck-browsing screens scroll normally as the list of decks grows
+- Installable as an app (Add to Home Screen / Install) and works offline after the first visit — the cards are all in the page, and a service worker caches the app shell
 - Zero dependencies beyond a Google Fonts import (Fredoka + Nunito)
 
 ## Try it locally
@@ -111,6 +112,9 @@ The production alias is `moodcards.vercel.app` (with `mood-cards.vercel.app` red
 ```
 Mood/
 ├── index.html     # the entire app — markup, styles, data, logic
+├── manifest.webmanifest  # PWA install metadata (name, colours, icons)
+├── sw.js          # service worker: caches the app shell for offline use
+├── icons/         # app icon (SVG)
 ├── .vercelignore  # excludes local-only files from deployment
 ├── .gitignore
 └── README.md
